@@ -1,8 +1,7 @@
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
-import sqlite3 from "sqlite3";
-import { open } from "sqlite";
+import fs from "fs";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -11,40 +10,45 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// 📌 Initialisation SQLite
-let db;
-(async () => {
-  db = await open({
-    filename: "/data/data.sqlite",
-    driver: sqlite3.Database
-  });
-  await db.exec(`CREATE TABLE IF NOT EXISTS journal (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    message TEXT,
-    date TEXT
-  )`);
-  console.log("✅ SQLite prêt !");
-})();
+// Chemin du fichier JSON dans le disque persistant
+const FILE_PATH = process.env.DB_PATH || "/data/journal.json";
 
-// 📌 Route test
-app.get("/", (req, res) => {
+// Fonction utilitaire pour lire le journal
+function loadJournal() {
+  try {
+    const data = fs.readFileSync(FILE_PATH, "utf-8");
+    return JSON.parse(data);
+  } catch (err) {
+    return []; // Si le fichier n'existe pas ou est vide
+  }
+}
+
+// Fonction utilitaire pour sauvegarder le journal
+function saveJournal(entries) {
+  fs.writeFileSync(FILE_PATH, JSON.stringify(entries, null, 2));
+}
+
+// Route test pour vérifier que le serveur fonctionne
+app.get("/", (_req, res) => {
   res.send("✅ CoachBot est en ligne !");
 });
 
-// 📌 Sauvegarde dans le journal
-app.post("/api/journal/save", async (req, res) => {
+// Sauvegarde dans le journal
+app.post("/api/journal/save", (req, res) => {
   const { message } = req.body;
-  await db.run("INSERT INTO journal (message, date) VALUES (?, datetime('now'))", message);
+  const journal = loadJournal();
+  journal.push({ message, date: new Date().toISOString() });
+  saveJournal(journal);
   res.json({ success: true });
 });
 
-// 📌 Lecture du journal
-app.get("/api/journal", async (req, res) => {
-  const entries = await db.all("SELECT * FROM journal ORDER BY date DESC");
-  res.json(entries);
+// Lecture du journal
+app.get("/api/journal", (_req, res) => {
+  const journal = loadJournal();
+  res.json(journal);
 });
 
-// 📌 Lancement serveur
+// Démarrage du serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Serveur lancé sur le port ${PORT}`);
