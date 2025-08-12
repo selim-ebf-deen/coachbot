@@ -1,6 +1,16 @@
-"dependencies": {
-  "express": "^4.18.2",
-  "cors": "^2.8.5",
-  "body-parser": "^1.20.2",
-  "dotenv": "^16.3.1"
+{
+  "name": "coachbot",
+  "version": "1.0.0",
+  "description": "Application CoachBot simplifiée",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.3.1"
+  }
 }
