@@ -1,49 +1,72 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <title>CoachBot Chat</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        #messages { max-height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; }
-        #messages div { margin-bottom: 8px; }
-        textarea { width: 100%; resize: vertical; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>🤖 Coach 15 Jours — Démo</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <h1>CoachBot Chat</h1>
-    <div id="messages"></div>
-    <textarea id="input" rows="3" placeholder="Écris ton message..."></textarea><br>
-    <button id="send">Envoyer</button>
+  <main class="page">
+    <header class="topbar">
+      <h1>🤖 Coach 15 Jours — Démo</h1>
+      <p class="subtitle">Sélectionnez un jour et affichez le plan. Écrivez ensuite votre message au coach.</p>
+    </header>
 
-    <script>
-        async function loadMessages() {
-            const res = await fetch('/api/journal');
-            const data = await res.json();
-            const messagesDiv = document.getElementById('messages');
-            messagesDiv.innerHTML = '';
-            data.forEach(item => {
-                const div = document.createElement('div');
-                div.textContent = `${item.date} : ${item.message}`;
-                messagesDiv.appendChild(div);
-            });
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
+    <section class="card controls">
+      <div class="row">
+        <div>
+          <label for="daySelect">Jour :</label>
+          <div class="dayline">
+            <select id="daySelect" class="select">
+              <!-- 1..15 -->
+            </select>
+            <button id="btnShow" class="btn primary">Afficher</button>
+          </div>
+        </div>
+      </div>
 
-        document.getElementById('send').addEventListener('click', async () => {
-            const input = document.getElementById('input');
-            const message = input.value.trim();
-            if (!message) return;
-            await fetch('/api/journal/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message })
-            });
-            input.value = '';
-            await loadMessages();
-        });
+      <div class="row gap">
+        <div class="navbtns">
+          <button id="btnPrev" class="btn icon" title="Jour précédent">◀</button>
+          <button id="btnNext" class="btn icon" title="Jour suivant">▶</button>
+        </div>
+        <button id="btnTool" class="btn">Outil utile</button>
+      </div>
+    </section>
 
-        loadMessages();
-    </script>
+    <section class="card hint">
+      <div class="chip">Conseil</div>
+      <ul class="hintlist">
+        <li>« Exporter » télécharge votre journal en .txt</li>
+        <li>Tout est local à cette page</li>
+      </ul>
+
+      <div class="row gap">
+        <button id="btnExport" class="btn">Exporter</button>
+        <button id="btnClear" class="btn">Effacer écran</button>
+      </div>
+    </section>
+
+    <section class="card plan">
+      <div class="chip">Plan du jour</div>
+      <p id="dayPlan" class="plantext"></p>
+    </section>
+
+    <section id="chat" class="card chat">
+      <!-- messages -->
+    </section>
+
+    <section class="composer">
+      <textarea id="input" rows="4" placeholder="Écrivez votre message…"></textarea>
+      <div class="row gap end">
+        <button id="btnSend" class="btn primary">Envoyer au coach</button>
+        <button id="btnSave" class="btn">Sauvegarder la réponse</button>
+      </div>
+      <p class="footnote">Prototype local — aucune donnée n’est envoyée à un fournisseur IA. Les messages s’enregistrent via votre API `/api/journal*`.</p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
 </body>
 </html>
