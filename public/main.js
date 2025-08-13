@@ -1,213 +1,205 @@
-/* ====== util ====== */
-const $ = (id) => document.getElementById(id);
-const tokenKey = "coachbot.token";
+// main.js — UI app + auth + chat streaming
+
+const $ = sel => document.querySelector(sel);
+const chat = $("#chat");
+const daySel = $("#daySel");
+const showPlanBtn = $("#showPlan");
+const plan = $("#plan");
+const msg = $("#msg");
+const sendBtn = $("#sendBtn");
+const who = $("#who");
+const loginBtn = $("#loginBtn");
+const logoutBtn = $("#logoutBtn");
+const adminBtn = $("#adminBtn");
+const providerSel = $("#providerSel");
+const scrim = $("#scrim");
+const closeModal = $("#closeModal");
+const doLogin = $("#doLogin");
+const doRegister = $("#doRegister");
+const email = $("#email");
+const pass = $("#pass");
+const regName = $("#regName");
+const toggleEye = $("#toggleEye");
+const loginErr = $("#loginErr");
+const loginInfo = $("#loginInfo");
+
+const TOKEN_KEY = "coachbot.token";
+
+function token(){ return localStorage.getItem(TOKEN_KEY) || null; }
+function setToken(t){ if(t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); }
+function authHeaders(h={}){ const t = token(); if(t) h.Authorization = "Bearer "+t; return h; }
+
+async function api(path, opt={}){
+  const headers = authHeaders({ "Content-Type":"application/json", ...(opt.headers||{}) });
+  const r = await fetch(path, { ...opt, headers });
+  return r;
+}
+
+// UI helpers
+function bubble(role, text){
+  const div = document.createElement("div");
+  div.className = "bubble " + (role === "user" ? "me" : "ai");
+  const dot = `<span class="dot ${role==='user'?'me':'ai'}"></span>`;
+  div.innerHTML = dot + (text || "");
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function setLogged(user){
+  if(user){
+    who.textContent = `Connecté : ${user.name || user.email}`;
+    logoutBtn.style.display = "";
+    loginBtn.style.display = "none";
+    adminBtn.style.display = (user.role === "admin") ? "" : "none";
+  }else{
+    who.textContent = "Non connecté";
+    logoutBtn.style.display = "none";
+    loginBtn.style.display = "";
+    adminBtn.style.display = "none";
+  }
+}
+
+function showLogin(open=true){ scrim.style.display = open ? "flex" : "none"; if(open){ loginErr.textContent=""; loginInfo.style.display="none"; } }
+
+// Build day select
+for(let d=1; d<=15; d++){
+  const o = document.createElement("option");
+  o.value = d; o.textContent = "Jour " + d;
+  daySel.appendChild(o);
+}
+daySel.value = "1";
 const plans = {
-  1:"Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que ‘réussir’ signifie concrètement.",
-  2:"Diagnostic : état des lieux, 3 leviers, 3 obstacles.",
+  1:"Clarification des intentions : défi prioritaire, pourquoi c’est important, et ce que ‘réussir’ signifie.",
+  2:"Diagnostic : 3 leviers + 3 obstacles.",
   3:"Vision + 3 indicateurs mesurables.",
   4:"Valeurs et motivations.",
   5:"Énergie : estime de soi / amour propre / confiance.",
-  6:"Confiance : preuves, retours, micro‑victoires.",
-  7:"Bilan intermédiaire KISS (Keep / Improve / Start / Stop).",
-  8:"Nouveau départ : cap et prochaines 48h.",
+  6:"Confiance (suite) : preuves, retours, micro‑victoires.",
+  7:"Bilan KISS (Keep / Improve / Start / Stop).",
+  8:"Nouveau départ : cap & prochaines 48h.",
   9:"Plan simple : 1 action / jour.",
-  10:"Message clé (CNV).",
+  10:"Préparer un message clé (CNV).",
   11:"Décisions : Stop / Keep / Start.",
-  12:"Échelle de responsabilité : au‑dessus de la ligne.",
+  12:"Échelle de responsabilité.",
   13:"Co‑développement éclair.",
   14:"Leadership (Maxwell).",
   15:"Bilan final + plan 30 jours."
 };
+function renderPlan(){ plan.textContent = plans[Number(daySel.value)] || ""; }
+renderPlan();
 
-function setPlan(day){ $("plan").textContent = `Jour ${day} — ${plans[day]||""}`; }
-function toast(msg){ alert(msg); } // simple & efficace
+// Events
+showPlanBtn.addEventListener("click", renderPlan);
+loginBtn.addEventListener("click", ()=>showLogin(true));
+closeModal.addEventListener("click", ()=>showLogin(false));
+logoutBtn.addEventListener("click", ()=>{ setToken(null); setLogged(null); chat.innerHTML=""; bubble("ai","Déconnecté."); });
+toggleEye.addEventListener("click", ()=>{ pass.type = pass.type === "password" ? "text":"password"; });
 
-function authHeader(){
-  const t = localStorage.getItem(tokenKey);
-  return t ? { Authorization: "Bearer "+t } : {};
-}
-async function api(path, options={}){
-  const r = await fetch(path, {
-    ...options,
-    headers: {
-      "Content-Type":"application/json",
-      ...authHeader(),
-      ...(options.headers||{})
-    }
-  });
-  return r;
-}
-
-/* ====== UI chat ====== */
-function renderMsg(role, text){
-  const line = document.createElement("div");
-  line.className = role === "user" ? "row me" : "row ai";
-  const dot = document.createElement("span");
-  dot.className = "dot " + (role==="user"?"green":"red");
-  const b = document.createElement("div");
-  b.className = "bubble";
-  b.textContent = text;
-  line.appendChild(dot); line.appendChild(b);
-  $("chat").appendChild(line);
-  $("chat").scrollTop = $("chat").scrollHeight;
-}
-function clearChat(){ $("chat").innerHTML=""; }
-
-/* ====== auth modal ====== */
-const modal = $("authModal");
-$("openAuth").onclick = () => openModal();
-$("closeAuth").onclick = () => closeModal();
-function openModal(){ modal.classList.add("open"); }
-function closeModal(){ modal.classList.remove("open"); $("authErr").textContent=""; }
-
-$("togglePwd").onclick = () => {
-  const f = $("authPassword");
-  f.type = (f.type === "password") ? "text" : "password";
-};
-
-let authMode = "user"; // user | admin (visuel uniquement)
-$("tabUser").onclick = ()=>{authMode="user"; $("tabUser").classList.add("active"); $("tabAdmin").classList.remove("active");};
-$("tabAdmin").onclick = ()=>{authMode="admin"; $("tabAdmin").classList.add("active"); $("tabUser").classList.remove("active");};
-
-/* ====== login/register ====== */
-$("loginBtn").onclick = doAuth;
-$("registerBtn").onclick = doAuth;
-
-async function doAuth(e){
-  const isRegister = (e.target.id === "registerBtn");
-  const email = $("authEmail").value.trim();
-  const password = $("authPassword").value.trim();
-  const name = $("authName").value.trim();
-  const url = isRegister ? "/api/auth/register" : "/api/auth/login";
-  const payload = isRegister ? { email, password, name } : { email, password };
-
-  $("authErr").textContent = "";
+doLogin.addEventListener("click", async ()=>{
+  loginErr.textContent = "";
   try{
-    const r = await api(url, { method:"POST", body: JSON.stringify(payload) });
+    const r = await fetch("/api/auth/login", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ email:email.value, password:pass.value })
+    });
+    if(!r.ok){ loginErr.textContent="Identifiants invalides."; return; }
+    const d = await r.json();
+    setToken(d.token); setLogged(d.user);
+    loginInfo.style.display=""; // ✅
+    setTimeout(()=> showLogin(false), 600);
+    await loadJournal();
+  }catch{ loginErr.textContent="Erreur réseau."; }
+});
+
+doRegister.addEventListener("click", async ()=>{
+  loginErr.textContent = "";
+  try{
+    const r = await fetch("/api/auth/register", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ email:email.value, password:pass.value, name:regName.value })
+    });
     if(!r.ok){
-      const text = await r.text().catch(()=> "Erreur.");
-      $("authErr").textContent = text || "Erreur.";
+      const t = await r.json().catch(()=> ({}));
+      loginErr.textContent = t?.error === "email_taken" ? "Email déjà utilisé." : "Erreur d'inscription.";
       return;
     }
-    const data = await r.json();
-    localStorage.setItem(tokenKey, data.token);
+    const d = await r.json();
+    setToken(d.token); setLogged(d.user);
+    loginInfo.style.display=""; // ✅
+    setTimeout(()=> showLogin(false), 600);
+    await loadJournal();
+  }catch{ loginErr.textContent="Erreur réseau."; }
+});
 
-    toast("✅ Connexion réussie !");
-    closeModal();
-    await hydrateMe();
-
-    if (data.user?.role === "admin") {
-      // petit délai pour laisser l’UI se mettre à jour
-      setTimeout(()=> location.href="/admin", 50);
-    }
-  }catch(err){
-    $("authErr").textContent = "Erreur réseau : " + err.message;
-  }
-}
-
-/* ====== me / logout ====== */
-$("logoutBtn").onclick = ()=>{
-  localStorage.removeItem(tokenKey);
-  $("who").textContent = "Non connecté";
-  $("logoutBtn").style.display = "none";
-  $("adminBtn").style.display = "none";
-  openModal();
-};
-
-async function hydrateMe(){
+// Charge /api/me si déjà loggé
+(async function boot(){
   try{
     const r = await api("/api/me");
-    if(r.status === 401){ // non connecté
-      $("who").textContent = "Non connecté";
-      $("logoutBtn").style.display = "none";
-      $("adminBtn").style.display = "none";
-      openModal();
-      return;
+    if (r.ok){
+      const d = await r.json();
+      setLogged(d.user);
+      await loadJournal();
+    } else {
+      setLogged(null);
     }
-    if(!r.ok) throw new Error("Impossible de charger /api/me");
-    const d = await r.json();
-    $("who").textContent = d?.user?.name ? `Connecté : ${d.user.name}` : `Connecté : ${d.user?.email||"?"}`;
-    $("logoutBtn").style.display = "inline-block";
-    $("adminBtn").style.display = (d?.user?.role === "admin") ? "inline-block" : "none";
-    $("connState").textContent = `Prénom: ${d.meta?.name || "—"} • DISC: ${d.meta?.disc || "—"}`;
-    await loadJournal();
-  }catch{ $("connState").textContent = "Erreur chargement profil."; }
-}
+  }catch{ setLogged(null); }
+})();
 
-/* ====== journal ====== */
+// Charger le journal du jour
 async function loadJournal(){
-  const day = Number($("daySel").value||1);
-  setPlan(day);
-  clearChat();
+  chat.innerHTML = "";
+  bubble("ai", "Conversation chargée (jour " + daySel.value + ").");
   try{
-    const r = await api(`/api/journal?day=${day}`);
-    if(!r.ok) throw new Error();
+    const r = await api("/api/journal?day="+daySel.value);
+    if(!r.ok){ bubble("ai","Erreur : impossible de charger le journal."); return; }
     const list = await r.json();
-    (list||[]).forEach(m => renderMsg(m.role==="ai"?"ai":"user", m.message));
-  }catch{ renderMsg("ai","Erreur : impossible de charger le journal."); }
+    for (const m of list){
+      bubble(m.role === "user" ? "user" : "ai", m.message);
+    }
+  }catch{ bubble("ai","Erreur de chargement."); }
 }
-$("daySel").onchange = loadJournal;
+daySel.addEventListener("change", loadJournal);
 
-/* ====== chat (stream Claude) ====== */
-$("sendBtn").onclick = sendMsg;
-$("msg").addEventListener("keydown", (e)=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendMsg(); } });
-
-async function sendMsg(){
-  const text = $("msg").value.trim();
+// Envoi message (streaming)
+sendBtn.addEventListener("click", async ()=>{
+  const text = (msg.value||"").trim();
   if(!text) return;
-  $("msg").value = "";
-  renderMsg("user", text);
+  bubble("user", text);
+  msg.value = "";
+  const controller = new AbortController();
 
-  const body = { message:text, day:Number($("daySel").value||1), provider:$("providerSel").value };
   try{
-    const r = await api("/api/chat/stream", { method:"POST", body: JSON.stringify(body) });
-    if(!r.ok || !r.body){ renderMsg("ai","Erreur côté IA : stream indisponible."); return; }
+    const r = await api("/api/chat/stream", {
+      method:"POST",
+      body: JSON.stringify({ message:text, day:Number(daySel.value), provider: providerSel.value }),
+      signal: controller.signal
+    });
+    if(!r.ok){ bubble("ai","Erreur côté IA."); return; }
 
     const reader = r.body.getReader();
     const decoder = new TextDecoder();
-    let aiBuffer = "";
-    let node; // un seul bubble pour l’IA en streaming
+    let aiDiv = document.createElement("div");
+    aiDiv.className = "bubble ai";
+    aiDiv.innerHTML = `<span class="dot ai"></span><span id="aitxt"></span>`;
+    chat.appendChild(aiDiv);
+    const target = aiDiv.querySelector("#aitxt");
 
     while(true){
-      const {done, value} = await reader.read();
+      const { done, value } = await reader.read();
       if(done) break;
-      const chunk = decoder.decode(value, {stream:true});
+      const chunk = decoder.decode(value, { stream:true });
       for(const line of chunk.split("\n")){
         if(!line.startsWith("data:")) continue;
         const payload = line.slice(5).trim();
         if(payload === "[DONE]") break;
         try{
           const evt = JSON.parse(payload);
-          if(evt.text){
-            if(!node){
-              // créer une bulle IA stream
-              const wrap = document.createElement("div");
-              wrap.className = "row ai";
-              const d = document.createElement("span"); d.className="dot red";
-              const b = document.createElement("div"); b.className="bubble"; b.textContent="";
-              wrap.appendChild(d); wrap.appendChild(b);
-              $("chat").appendChild(wrap); $("chat").scrollTop = $("chat").scrollHeight;
-              node = b;
-            }
-            aiBuffer += evt.text;
-            node.textContent = aiBuffer;
-            $("chat").scrollTop = $("chat").scrollHeight;
-          }
-          if(evt.error){
-            renderMsg("ai", "Erreur stream : " + evt.error);
-          }
-        }catch{/* ignore */}
+          if(evt.text) { target.textContent += evt.text; chat.scrollTop = chat.scrollHeight; }
+          if(evt.error){ target.textContent = "[Erreur] " + evt.error; }
+        }catch{}
       }
     }
-  }catch(err){
-    renderMsg("ai", "Erreur réseau : " + err.message);
+  }catch{
+    bubble("ai","Erreur réseau.");
   }
-}
-
-/* ====== init ====== */
-(function init(){
-  setPlan(Number($("daySel").value||1));
-  // ouvrir la modale si pas de token
-  if(!localStorage.getItem(tokenKey)) openModal();
-  hydrateMe();
-})();
+});
