@@ -1,4 +1,4 @@
-// server.js — CoachBot (JSON storage + health endpoints)
+// server.js — CoachBot (JSON storage + health + debug endpoints)
 // ES modules
 import express from "express";
 import cors from "cors";
@@ -21,6 +21,7 @@ const __dirname = path.dirname(__filename);
 const DB_PATH     = process.env.DB_PATH     || "/data/journal.json"; // discussions par jour
 const META_PATH   = process.env.META_PATH   || "/data/meta.json";     // prénom + DISC
 const PROMPT_PATH = process.env.PROMPT_PATH || path.join(__dirname, "prompt.txt");
+const DEBUG_TOKEN = process.env.DEBUG_TOKEN || null; // protège les routes /debug
 
 // ---------------- Utils: files & JSON ----------------
 function ensureDir(p) { fs.mkdirSync(path.dirname(p), { recursive: true }); }
@@ -310,21 +311,11 @@ app.post("/api/chat/stream", async (req, res) => {
 
 // ---------------- Health / Ready / Version ----------------
 app.get("/healthz", (_req, res) => {
-  // check fichiers essentiels
   const dbExists   = fs.existsSync(DB_PATH);
   const metaExists = fs.existsSync(META_PATH);
-  res.status(200).json({
-    ok: true,
-    db: dbExists ? "ok" : "missing",
-    meta: metaExists ? "ok" : "missing"
-  });
+  res.status(200).json({ ok: true, db: dbExists ? "ok" : "missing", meta: metaExists ? "ok" : "missing" });
 });
-
-app.get("/readyz", (_req, res) => {
-  // simple readiness (tu peux enrichir plus tard)
-  res.status(200).json({ ready: true });
-});
-
+app.get("/readyz", (_req, res) => res.status(200).json({ ready: true }));
 app.get("/version", (_req, res) => {
   res.json({
     name: "coachbot",
@@ -332,6 +323,49 @@ app.get("/version", (_req, res) => {
     model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022",
     time: new Date().toISOString()
   });
+});
+
+// ---------------- DEBUG (protégés par DEBUG_TOKEN) ----------------
+function guardDebug(req, res) {
+  if (!DEBUG_TOKEN) return true; // si pas de token défini, routes ouvertes (évite en prod)
+  const t = (req.query.token || req.headers["x-debug-token"] || "").toString();
+  if (t !== DEBUG_TOKEN) {
+    res.status(403).json({ error: "forbidden" });
+    return false;
+  }
+  return true;
+}
+
+app.get("/debug/ls", (req, res) => {
+  if (!guardDebug(req, res)) return;
+  try {
+    const entries = fs.readdirSync("/data").map(name => {
+      const st = fs.statSync(path.join("/data", name));
+      return { name, size: st.size, mtime: st.mtime };
+    });
+    res.json({ path: "/data", entries });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/debug/meta", (req, res) => {
+  if (!guardDebug(req, res)) return;
+  res.json({ meta: loadMeta(), META_PATH });
+});
+
+app.get("/debug/journal", (req, res) => {
+  if (!guardDebug(req, res)) return;
+  res.json({ journal: loadDB(), DB_PATH });
+});
+
+app.post("/debug/reset", (req, res) => {
+  if (!guardDebug(req, res)) return;
+  const what = (req.body?.what || "").toString();
+  if (what === "journal") saveJSON(DB_PATH, {});
+  else if (what === "meta") saveJSON(META_PATH, { name: null, disc: null });
+  else return res.status(400).json({ error: "what must be 'journal' or 'meta'" });
+  res.json({ success: true });
 });
 
 // ---------------- Start ----------------
