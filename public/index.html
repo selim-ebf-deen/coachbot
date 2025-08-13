@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Coach 15 Jours — Démo</title>
+  <title>Coach 15 Jours</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* Pastilles vert/rouge */
-    .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:8px;flex:0 0 10px}
+    .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:10px;flex:0 0 10px}
     .dot.green{background:#22c55e}
     .dot.red{background:#f43f5e}
   </style>
@@ -15,7 +14,7 @@
 <body>
   <main class="page">
     <header class="topbar">
-      <h1>Coach 15 Jours — Démo</h1>
+      <h1>Coach 15 Jours</h1>
       <p class="subtitle">Sélectionne un jour et affiche le plan. Écris ensuite ton message au coach.</p>
     </header>
 
@@ -27,10 +26,9 @@
             <select id="daySelect" class="select"></select>
             <button id="btnShow" class="btn primary">Afficher</button>
 
+            <!-- Fournisseur (Claude par défaut) -->
             <select id="provider" class="select" title="Fournisseur IA">
               <option value="anthropic" selected>Claude</option>
-              <option value="openai">OpenAI</option>
-              <option value="gemini">Gemini</option>
             </select>
           </div>
         </div>
@@ -48,8 +46,8 @@
     <section class="card hint">
       <div class="chip">Conseil</div>
       <ul class="hintlist">
-        <li>« Exporter » télécharge ton journal en .txt</li>
-        <li>Les messages s’enregistrent par jour via l’API locale</li>
+        <li>« Exporter » télécharge ton journal du jour en .txt</li>
+        <li>Les discussions sont séparées par jour</li>
       </ul>
       <div class="row gap">
         <button id="btnExport" class="btn">Exporter</button>
@@ -62,17 +60,15 @@
       <p id="dayPlan" class="plantext"></p>
     </section>
 
-    <section id="chat" class="card chat">
-      <!-- messages par jour -->
-    </section>
+    <section id="chat" class="card chat"></section>
 
     <section class="composer">
-      <textarea id="input" rows="4" placeholder="Écris ton message…"></textarea>
+      <textarea id="input" rows="4" placeholder="Écris ton message… (Ex: « je m’appelle Samir » pour enregistrer ton prénom)"></textarea>
       <div class="row gap end">
         <button id="btnSend" class="btn primary">Envoyer au coach</button>
         <button id="btnSave" class="btn">Sauvegarder la réponse</button>
       </div>
-      <p class="footnote">Données côté serveur, par jour. Streaming activé (Claude/OpenAI).</p>
+      <p class="footnote">Streaming activé avec Claude. Données enregistrées par jour côté serveur.</p>
     </section>
   </main>
 
