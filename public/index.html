@@ -27,10 +27,11 @@ select{appearance:none;border:1px solid var(--line);background:var(--card);paddi
 .search input{flex:1;border:none;outline:none;background:transparent}
 .primary{padding:10px 16px;border:none;border-radius:22px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
 .primary:active{transform:translateY(1px)}
+.primary[disabled]{opacity:.6;cursor:not-allowed}
 .toolbar{display:flex;gap:10px;align-items:center;justify-content:flex-end;width:min(var(--chatw),100%);margin:0 auto 12px}
 .secondary{background:#5f6368}
 .tertiary{background:#9aa0a6}
-.history{width:min(var(--chatw),100%);margin:6px auto 0}
+.history{width:min(var(--chatw),100%);margin:6px auto 0;height:56vh;overflow:auto}
 .row{display:flex;margin:6px 0}
 .row.user{justify-content:flex-end}
 .row.bot{justify-content:flex-start}
@@ -74,7 +75,7 @@ select{appearance:none;border:1px solid var(--line);background:var(--card);paddi
         <option value="10">Jour 10</option><option value="11">Jour 11</option><option value="12">Jour 12</option>
         <option value="13">Jour 13</option><option value="14">Jour 14</option><option value="15">Jour 15</option>
       </select>
-      <button id="logoutBtn" class="primary tertiary" title="Déconnexion">Quitter</button>
+      <button id="logoutBtn" class="primary tertiary" title="Déconnexion" style="display:none">Quitter</button>
       <button id="loginBtn"  class="primary" title="Connexion">Connexion</button>
     </div>
   </div>
@@ -167,11 +168,12 @@ const btnToggle = document.getElementById('toggleMode');
 const btnCancel = document.getElementById('authCancel');
 const btnSubmit = document.getElementById('authSubmit');
 
-let mode = "login"; // or "register"
+let mode = "login"; // ou "register"
 
 // ---------- Token & fetch helper ----------
 function getToken(){ return localStorage.getItem('coachbot.token') || null; }
 function setToken(t){ if(t) localStorage.setItem('coachbot.token', t); else localStorage.removeItem('coachbot.token'); }
+
 async function api(path, options={}){
   const headers = Object.assign({ 'Content-Type':'application/json' }, options.headers||{});
   const token = getToken(); if(token) headers['Authorization'] = 'Bearer ' + token;
@@ -183,4 +185,204 @@ async function api(path, options={}){
 function row(role, text){
   const el=document.createElement('div');
   el.className='row '+(role==='user'?'user':'bot');
-  el.innerHTML=`<div class="msg"><span class="led ${role==='user'?'led
+  el.innerHTML=`
+    <div class="msg">
+      <span class="led ${role==='user'?'led-user':'led-bot'}"></span>
+      <div class="bubble"></div>
+    </div>`;
+  el.querySelector('.bubble').textContent = text;
+  return el;
+}
+function scrollToEnd(){ historyEl.scrollTop = historyEl.scrollHeight; }
+function setPlan(day){ planLabel.textContent='J'+day; planText.textContent=PLANS[day]||''; }
+function setConnectedUI(user){
+  who.classList.remove('warn');
+  who.textContent = user?.name ? `Connecté : ${user.name}` : `Connecté : ${user?.email||'inconnu'}`;
+  loginBtn.style.display = 'none';
+  logoutBtn.style.display = '';
+}
+function setDisconnectedUI(){
+  who.classList.add('warn');
+  who.textContent = 'Non connecté';
+  loginBtn.style.display = '';
+  logoutBtn.style.display = 'none';
+}
+
+// ---------- Auth modal ----------
+function openAuth(m="login"){
+  mode = m;
+  modalTitle.textContent = (mode==='login') ? 'Connexion' : 'Créer un compte';
+  btnToggle.textContent  = (mode==='login') ? 'Créer un compte' : 'J’ai déjà un compte';
+  nameField.style.display= (mode==='register') ? '' : 'none';
+  authErr.textContent = ''; authOk.textContent = '';
+  authModal.style.display = 'flex';
+  setTimeout(()=> emailInput.focus(), 50);
+}
+function closeAuth(){
+  authModal.style.display = 'none';
+}
+btnToggle.addEventListener('click', ()=>{
+  openAuth(mode==='login'?'register':'login');
+});
+btnCancel.addEventListener('click', closeAuth);
+
+btnSubmit.addEventListener('click', async ()=>{
+  authErr.textContent=''; authOk.textContent='';
+  const email = emailInput.value.trim();
+  const pwd   = pwdInput.value.trim();
+  const name  = nameInput.value.trim();
+  if(!email || !pwd){ authErr.textContent='Email et mot de passe requis.'; return; }
+  try{
+    if(mode==='register'){
+      const r = await api('/api/auth/register', { method:'POST', body:JSON.stringify({email,password:pwd,name}) });
+      const data = await r.json();
+      if(!r.ok){ authErr.textContent = data?.error || 'Erreur inscription.'; return; }
+      setToken(data.token);
+      authOk.textContent='Compte créé. Connexion réussie.'; 
+    }else{
+      const r = await api('/api/auth/login', { method:'POST', body:JSON.stringify({email,password:pwd}) });
+      const data = await r.json();
+      if(!r.ok){ authErr.textContent = data?.error || 'Erreur connexion.'; return; }
+      setToken(data.token);
+      authOk.textContent='Connexion réussie.';
+    }
+    await hydrateUser(); // met à jour UI + charge journal
+    setTimeout(closeAuth, 400);
+  }catch(e){ authErr.textContent='Erreur réseau.'; }
+});
+
+// ---------- Load history ----------
+async function loadHistory(day){
+  historyEl.innerHTML = '';
+  historyEl.appendChild(row('bot',"Bienvenue ! Choisis un jour, affiche le plan, puis écris ton message. Si on ne se connaît pas, dis‑moi ton prénom (ex. « je m’appelle Salim »)."));
+  try{
+    const r = await api(`/api/journal?day=${day}`);
+    if(r.status===401){ setToken(null); setDisconnectedUI(); openAuth('login'); return; }
+    const items = await r.json();
+    for(const it of items){
+      historyEl.appendChild(row(it.role==='ai'?'bot':it.role, it.message));
+    }
+    scrollToEnd();
+  }catch{ historyEl.appendChild(row('bot','Erreur : impossible de charger le journal.')); }
+}
+
+// ---------- Stream reply (Claude) ----------
+async function streamClaude(message, day){
+  // sécurisé : si pas de token → modale
+  if(!getToken()){ openAuth('login'); return; }
+
+  // afficher le message user immédiatement
+  historyEl.appendChild(row('user', message)); scrollToEnd();
+
+  // préparer la bulle du coach
+  const botRow = row('bot', ''); const bubble = botRow.querySelector('.bubble');
+  historyEl.appendChild(botRow); scrollToEnd();
+
+  // désactiver le bouton le temps du stream
+  sendBtn.disabled = true;
+
+  try{
+    const token = getToken();
+    const resp = await fetch('/api/chat/stream', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization': token ? ('Bearer ' + token) : ''
+      },
+      body: JSON.stringify({ message, day, provider:'anthropic' })
+    });
+    if(!resp.ok || !resp.body){
+      bubble.textContent = "Erreur côté IA (stream indisponible).";
+      return;
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      const chunk = decoder.decode(value, {stream:true});
+      for(const line of chunk.split('\n')){
+        if(!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if(payload === '[DONE]') continue;
+        try{
+          const evt = JSON.parse(payload);
+          if(evt.text){ bubble.textContent += evt.text; scrollToEnd(); }
+          if(evt.error){ bubble.textContent = 'Erreur : ' + evt.error; }
+        }catch{}
+      }
+    }
+  }catch{ bubble.textContent = 'Erreur réseau.'; }
+  finally{ sendBtn.disabled = false; }
+}
+
+// ---------- Export ----------
+async function exportTxt(){
+  if(!getToken()){ openAuth('login'); return; }
+  try{
+    const r = await api(`/api/journal?day=${Number(daySelect.value)}`);
+    if(!r.ok){ alert('Export impossible.'); return; }
+    const data = await r.json();
+    const lines = data.map(m => `[${m.role}] ${m.message}`).join('\n\n');
+    const blob = new Blob([lines], {type:'text/plain;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `journal_J${daySelect.value}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }catch{ alert('Export impossible.'); }
+}
+
+// ---------- Clear (écran seulement) ----------
+function clearScreen(){ historyEl.innerHTML=''; }
+
+// ---------- Events ----------
+sendBtn.addEventListener('click', ()=>{
+  const txt = msgInput.value.trim();
+  if(!txt) return;
+  if(!getToken()){ openAuth('login'); return; }
+  streamClaude(txt, Number(daySelect.value));
+  msgInput.value=''; msgInput.focus();
+});
+msgInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); sendBtn.click(); }});
+daySelect.addEventListener('change', ()=>{
+  const d = Number(daySelect.value);
+  localStorage.setItem('coachbot.day', String(d));
+  setPlan(d); loadHistory(d);
+});
+exportBtn.addEventListener('click', exportTxt);
+clearBtn.addEventListener('click', clearScreen);
+
+loginBtn.addEventListener('click', ()=> openAuth('login'));
+logoutBtn.addEventListener('click', ()=>{
+  setToken(null); setDisconnectedUI(); openAuth('login');
+});
+
+// ---------- Hydrate user on load ----------
+async function hydrateUser(){
+  const t = getToken();
+  if(!t){ setDisconnectedUI(); return false; }
+  try{
+    const r = await api('/api/me');
+    if(!r.ok){ setToken(null); setDisconnectedUI(); return false; }
+    const data = await r.json();
+    setConnectedUI(data.user);
+    return true;
+  }catch{ setDisconnectedUI(); return false; }
+}
+
+// ---------- Init ----------
+(function init(){
+  const saved = Number(localStorage.getItem('coachbot.day')||'1');
+  if(saved>=1 && saved<=15){ daySelect.value = String(saved); }
+  const d = Number(daySelect.value);
+  setPlan(d);
+  hydrateUser().then((ok)=>{
+    if(ok){ loadHistory(d); }
+    else { openAuth('login'); }
+  });
+  msgInput.focus();
+})();
+</script>
+</body>
+</html>
