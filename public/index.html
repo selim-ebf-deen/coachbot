@@ -18,10 +18,15 @@
         <div>
           <label for="daySelect">Jour :</label>
           <div class="dayline">
-            <select id="daySelect" class="select">
-              <!-- 1..15 -->
-            </select>
+            <select id="daySelect" class="select"></select>
             <button id="btnShow" class="btn primary">Afficher</button>
+
+            <!-- Sélecteur de fournisseur IA -->
+            <select id="provider" class="select" title="Fournisseur IA">
+              <option value="anthropic" selected>Claude</option>
+              <option value="openai">OpenAI</option>
+              <option value="gemini">Gemini</option>
+            </select>
           </div>
         </div>
       </div>
@@ -38,10 +43,9 @@
     <section class="card hint">
       <div class="chip">Conseil</div>
       <ul class="hintlist">
-        <li>« Exporter » télécharge votre journal en .txt</li>
-        <li>Tout est local à cette page</li>
+        <li>« Exporter » télécharge votre journal en .txt</li>
+        <li>Les messages s’enregistrent via l’API locale</li>
       </ul>
-
       <div class="row gap">
         <button id="btnExport" class="btn">Exporter</button>
         <button id="btnClear" class="btn">Effacer écran</button>
@@ -63,7 +67,7 @@
         <button id="btnSend" class="btn primary">Envoyer au coach</button>
         <button id="btnSave" class="btn">Sauvegarder la réponse</button>
       </div>
-      <p class="footnote">Prototype local — aucune donnée n’est envoyée à un fournisseur IA. Les messages s’enregistrent via votre API `/api/journal*`.</p>
+      <p class="footnote">Prototype — les clés restent côté serveur. Le streaming est activé pour Claude/OpenAI.</p>
     </section>
   </main>
 
