@@ -25,8 +25,8 @@
   .msg{display:flex;gap:10px}
   .right{justify-content:flex-end}
   .dot{width:10px;height:10px;border-radius:50%}
-  .dot.user{background:#10b981} /* vert */
-  .dot.ai{background:#ef4444}   /* rouge */
+  .dot.user{background:#10b981}
+  .dot.ai{background:#ef4444}
   .bubble{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:12px;padding:10px;max-width:85%}
   .hint{font-size:12px;color:var(--muted)}
   .footer{margin-top:16px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}
@@ -138,6 +138,17 @@ function token(){return localStorage.getItem("coachbot.token")||null}
 function setToken(t){t?localStorage.setItem("coachbot.token",t):localStorage.removeItem("coachbot.token")}
 async function api(path,opt={}){const h=Object.assign({"Content-Type":"application/json"},opt.headers||{});const t=token();if(t)h.Authorization="Bearer "+t;return fetch(path,Object.assign({},opt,{headers:h}))}
 
+/* Helper pour POST + visibilité des erreurs brutes */
+async function postJSON(path, payload){
+  const r = await api(path,{method:"POST",body:JSON.stringify(payload)});
+  const raw = await r.text().catch(()=> "");
+  let data=null; try{ data = raw ? JSON.parse(raw) : null; }catch{}
+  return { ok:r.ok, status:r.status, data, raw };
+}
+
+/* Pour debug rapide : window.__lastAuth contient les derniers résultats */
+window.__lastAuth = { login:null, register:null, me:null };
+
 /* ---------- UI helpers ---------- */
 function addMsg(role,text){
   const row=document.createElement("div");row.className="msg "+(role==="user"?"right":"");
@@ -149,7 +160,7 @@ function show(el){el.classList.remove("hidden")} function hide(el){el.classList.
 function toast(txt){toastEl.textContent=txt;show(toastEl);setTimeout(()=>hide(toastEl),1600)}
 
 /* ---------- Auth modal ---------- */
-let authMode="user"; // "user" | "admin"
+let authMode="user";
 function selectMode(mode){
   authMode=mode;
   tabUser.classList.toggle("active",mode==="user");
@@ -160,23 +171,11 @@ tabAdmin.onclick=()=>selectMode("admin");
 
 openAuth.onclick=()=>{show(authModal);authErr.textContent="";$("#email").focus()}
 $("#closeAuth").onclick=()=>hide(authModal);
-
-// fermer au clic hors carte
 authModal.addEventListener("click",(e)=>{ if(e.target===authModal) hide(authModal); });
-// empêcher la propagation dans la carte
 authCard.addEventListener("click",(e)=>e.stopPropagation());
-// fermer avec Échap
 window.addEventListener("keydown",(e)=>{ if(!authModal.classList.contains("hidden") && e.key==="Escape") hide(authModal); });
-
-// œil mot de passe
-$("#togglePwd").onclick=()=>{
-  const p=$("#password"); p.type = p.type==="password" ? "text" : "password";
-};
-
-// Entrée = bouton Connexion
-authModal.addEventListener("keydown",(e)=>{
-  if(e.key==="Enter"){ doLogin.click(); }
-});
+$("#togglePwd").onclick=()=>{ const p=$("#password"); p.type = p.type==="password" ? "text" : "password"; };
+authModal.addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ doLogin.click(); }});
 
 /* ---------- Auth UI header ---------- */
 function updateAuthUI(user){
@@ -196,36 +195,40 @@ async function doLoginCall(){
   const email=$("#email").value.trim(), password=$("#password").value.trim();
   if(!email||!password){authErr.textContent="Email et mot de passe requis.";return}
   try{
-    const r=await api("/api/auth/login",{method:"POST",body:JSON.stringify({email,password})});
-    const d=await r.json().catch(()=>null);
-    if(!r.ok || !d){authErr.textContent=(d&&d.error)||"Erreur connexion";return}
+    const res = await postJSON("/api/auth/login",{email,password});
+    window.__lastAuth.login = res;
 
-    // Si onglet Admin, vérifier le rôle
-    if(authMode==="admin" && d.user?.role!=="admin"){
+    if(!(res.ok && res.data && res.data.token)){
+      authErr.textContent = `Échec (${res.status}). ${res.data?.error||res.raw||"Réponse inattendue."}`;
+      return;
+    }
+    // Si onglet Admin → rôle requis
+    if(authMode==="admin" && res.data.user?.role!=="admin"){
       authErr.textContent="Ce compte n’est pas admin."; return;
     }
-
-    setToken(d.token); updateAuthUI(d.user);
+    setToken(res.data.token); updateAuthUI(res.data.user);
     hide(authModal); toast("✅ Connexion réussie"); statusEl.textContent="Connecté";
     await hydrate();
   }catch{authErr.textContent="Erreur réseau"}
 }
 async function doRegisterCall(){
   authErr.textContent=""; statusEl.textContent="Inscription…";
-  const email=$("#email").value.trim(), password=$("#password").value.trim(), name=(nameEl.value||"").trim()||null;
+  const email=$("#email").value.trim(), password=$("#password").value.trim(), name=($("#name").value||"").trim()||null;
   if(!email||!password){authErr.textContent="Email et mot de passe requis.";return}
   try{
-    const r=await api("/api/auth/register",{method:"POST",body:JSON.stringify({email,password,name})});
-    const d=await r.json().catch(()=>null);
-    if(!r.ok || !d){authErr.textContent=(d&&d.error)||"Erreur inscription";return}
-    setToken(d.token); updateAuthUI(d.user);
+    const res = await postJSON("/api/auth/register",{email,password,name});
+    window.__lastAuth.register = res;
+
+    if(!(res.ok && res.data && res.data.token)){
+      authErr.textContent = `Échec (${res.status}). ${res.data?.error||res.raw||"Réponse inattendue."}`;
+      return;
+    }
+    setToken(res.data.token); updateAuthUI(res.data.user);
     hide(authModal); toast("✅ Inscrit et connecté"); statusEl.textContent="Connecté";
     await hydrate();
   }catch{authErr.textContent="Erreur réseau"}
 }
 doLogin.onclick=doLoginCall; doRegister.onclick=doRegisterCall;
-
-// bouton Admin → /admin (n’apparait que si role admin)
 adminBtn.onclick=()=>{ location.href="/admin"; };
 
 /* ---------- Me + Journal ---------- */
@@ -233,8 +236,10 @@ async function hydrate(){
   if(!token()){updateAuthUI(null);return}
   try{
     const me=await api("/api/me");
-    if(!me.ok){setToken(null);updateAuthUI(null);return}
-    const {user,meta}=await me.json();
+    const raw=await me.text().catch(()=> ""); let d=null; try{d=raw?JSON.parse(raw):null;}catch{}
+    window.__lastAuth.me = { ok:me.ok, status:me.status, data:d, raw };
+    if(!me.ok || !d){setToken(null);updateAuthUI(null);return}
+    const {user,meta}=d;
     updateAuthUI(user);
     metaEl.textContent=`Prénom: ${meta?.name||"—"} • DISC: ${meta?.disc||"—"}`;
     await loadJournal();
