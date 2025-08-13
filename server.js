@@ -1,5 +1,6 @@
-// server.js — CoachBot complet (multi‑utilisateur + Claude + Admin)
-// ES modules
+// server.js — CoachBot complet (auth + multi-user + admin + Claude streaming)
+// Node 20 ESM
+
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
@@ -7,105 +8,109 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-
 dotenv.config();
 
-// ---------------- App & middlewares ----------------
+// ---------- App ----------
 const app = express();
 app.use(cors());
-app.use(bodyParser.json({ limit: "1mb" }));
+app.use(bodyParser.json());
 
-// ---------------- Paths / filenames ----------------
+// ---------- Paths ----------
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname  = path.dirname(__filename);
 
-// Fichiers (JSON) — par défaut /data pour persistance Render
 const USERS_PATH   = process.env.USERS_PATH   || "/data/users.json";
 const JOURNAL_PATH = process.env.JOURNAL_PATH || "/data/journal.json";
-const META_PATH    = process.env.META_PATH    || "/data/meta.json";
+const META_PATH    = process.env.META_PATH    || "/data/meta.json"; // legacy global (non utilisé pour multi-user)
 const PROMPT_PATH  = process.env.PROMPT_PATH  || path.join(__dirname, "prompt.txt");
 
-const JWT_SECRET   = process.env.JWT_SECRET || "change_me_now";
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022";
-
-// ---------------- Utils: files & JSON ----------------
+// ---------- Helpers fichiers ----------
 function ensureDir(p) { fs.mkdirSync(path.dirname(p), { recursive: true }); }
 function loadJSON(p, fallback) {
-  try {
-    const raw = fs.readFileSync(p, "utf-8");
-    const obj = JSON.parse(raw);
-    return obj && typeof obj === "object" ? obj : fallback;
-  } catch {
-    return fallback;
-  }
+  try { return JSON.parse(fs.readFileSync(p, "utf-8")); }
+  catch { return fallback; }
 }
 function saveJSON(p, obj) { ensureDir(p); fs.writeFileSync(p, JSON.stringify(obj, null, 2)); }
-function getPromptText() {
+
+// Stockages
+function loadUsers(){ return loadJSON(USERS_PATH, {}); }
+function saveUsers(u){ saveJSON(USERS_PATH, u); }
+function loadJournal(){ return loadJSON(JOURNAL_PATH, {}); }
+function saveJournal(db){ saveJSON(JOURNAL_PATH, db); }
+
+// Prompt système
+function getPromptText(){
   try { return fs.readFileSync(PROMPT_PATH, "utf-8"); }
   catch {
-    return (
-      "Tu es CoachBot, un coach personnel bienveillant, direct et orienté résultats. " +
-      "Toujours tutoyer l’utilisateur et utiliser son prénom si connu. Réponses courtes, " +
-      "concrètes, 1–2 conseils actionnables ≤24h, 1 micro‑action de 10 min, 1 critère de réussite."
-    );
+    return "Tu es CoachBot. Réponds en français, brièvement, concrètement, en tutoyant.";
   }
 }
 
-// ---------------- In‑memory helpers vers fichiers ----------------
-function loadUsers()   { return loadJSON(USERS_PATH, {}); }
-function saveUsers(u)  { saveJSON(USERS_PATH, u); }
-
-function loadJournal() { return loadJSON(JOURNAL_PATH, {}); }
-function saveJournal(j){ saveJSON(JOURNAL_PATH, j); }
-
-function loadMetaAll() { return loadJSON(META_PATH, {}); }                 // { userId: {name, disc} }
-function saveMetaAll(m){ saveJSON(META_PATH, m); }
-
-// Retourne tableau d’entrées pour un userId+day
-function getEntries(userId, day) {
+// ---------- Migrations douces ----------
+(function migrate() {
   const db = loadJournal();
-  const u = db[userId] || {};
-  const val = u[day];
-  if (Array.isArray(val)) return val;
-  if (val && typeof val === "object") return [val]; // compat anciens formats
-  return [];
+  let changed = false;
+  // On s'assure que chaque clé jour (1..15) est un tableau
+  for (const k of Object.keys(db)) {
+    const v = db[k];
+    if (Array.isArray(v)) continue;
+    if (v && typeof v === "object") { db[k] = [v]; changed = true; }
+    else { db[k] = []; changed = true; }
+  }
+  if (changed) saveJournal(db);
+
+  // Seed admin si variables présentes
+  const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
+  if (ADMIN_EMAIL && ADMIN_PASSWORD) {
+    const users = loadUsers();
+    const existing = Object.values(users).find(u => u.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+    if (!existing) {
+      const id = "u_" + Math.random().toString(36).slice(2, 10);
+      const passwordHash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
+      users[id] = {
+        id,
+        email: ADMIN_EMAIL.toLowerCase(),
+        name: "Admin",
+        role: "admin",
+        createdAt: new Date().toISOString(),
+        passwordHash
+      };
+      saveUsers(users);
+      console.log("Seed admin créé pour", ADMIN_EMAIL);
+    }
+  }
+})();
+
+// ---------- Middlewares auth ----------
+function requireAuth(req, res, next) {
+  const h = req.headers.authorization || "";
+  const token = h.startsWith("Bearer ") ? h.slice(7) : null;
+  if (!token) return res.status(401).json({ error: "no_token" });
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = payload; // { sub: userId, role, iat, exp }
+    next();
+  } catch {
+    return res.status(401).json({ error: "bad_token" });
+  }
 }
-function addEntry(userId, day, entry) {
-  const db = loadJournal();
-  if (!db[userId] || typeof db[userId] !== "object") db[userId] = {};
-  const val = db[userId][day];
-  let arr;
-  if (Array.isArray(val)) arr = val;
-  else if (val && typeof val === "object") arr = [val];
-  else arr = [];
-  arr.push(entry);
-  db[userId][day] = arr;
-  saveJournal(db);
+function requireAdmin(req, res, next) {
+  requireAuth(req, res, () => {
+    if (req.user?.role !== "admin") return res.status(403).json({ error: "forbidden" });
+    next();
+  });
 }
 
-// Méta prénom/DISC par user
-function getMeta(userId) {
-  const m = loadMetaAll();
-  return m[userId] || { name: null, disc: null };
-}
-function setMeta(userId, metaPatch) {
-  const m = loadMetaAll();
-  if (!m[userId]) m[userId] = { name: null, disc: null };
-  if (typeof metaPatch?.name === "string") m[userId].name = metaPatch.name.trim();
-  if (typeof metaPatch?.disc === "string") m[userId].disc = metaPatch.disc.toUpperCase();
-  saveMetaAll(m);
-  return m[userId];
-}
-
-// ---------------- Heuristiques prénom & DISC ----------------
+// ---------- Heuristiques prénom & DISC ----------
 function maybeExtractName(text) {
   const t = (text || "").trim();
   let m = t.match(/je m(?:'|e)appelle\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i)
-       || t.match(/moi c['’]est\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i)
-       || (t.split(/\s+/).length === 1 ? [null, t] : null);
-  return m ? m[1].trim().replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ]+|[^A-Za-zÀ-ÖØ-öø-ÿ]+$/g,"") : null;
+        || t.match(/moi c['’]est\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i)
+        || (t.split(/\s+/).length === 1 ? [null, t] : null);
+  const name = m ? m[1].trim().replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ]+|[^A-Za-zÀ-ÖØ-öø-ÿ]+$/g,"") : null;
+  return name || null;
 }
 function inferDISC(text) {
   const t = (text || "").trim();
@@ -124,192 +129,101 @@ function inferDISC(text) {
   return null;
 }
 
-// ---------------- Plans du jour (référence) ----------------
+// ---------- Plans jour ----------
 const plans = {
-  1:"Jour 1 — Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que ‘réussir’ signifie concrètement.",
-  2:"Jour 2 — Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",
-  3:"Jour 3 — Vision et critères de réussite : issue idéale + 3 indicateurs.",
-  4:"Jour 4 — Valeurs et motivations : aligne objectifs et valeurs.",
-  5:"Jour 5 — Énergie : estime de soi / amour propre / confiance.",
-  6:"Jour 6 — Confiance (suite) : preuves, retours, micro‑victoires.",
-  7:"Jour 7 — Bilan et KISS (Keep‑Improve‑Start‑Stop).",
-  8:"Jour 8 — Nouveau départ : cap et prochaines 48h.",
-  9:"Jour 9 — Plan d’action simple : 1 chose / jour.",
-  10:"Jour 10 — CNV : préparer un message clé.",
-  11:"Jour 11 — Décisions : Stop / Keep / Start.",
-  12:"Jour 12 — Échelle de responsabilité : au‑dessus de la ligne.",
-  13:"Jour 13 — Co‑développement éclair (pairing).",
-  14:"Jour 14 — Leadership (Maxwell).",
-  15:"Jour 15 — Bilan final + plan 30 jours."
+  1:"Clarification des intentions : défi prioritaire, pourquoi c’est important, et ce que ‘réussir’ signifie.",
+  2:"Diagnostic : 3 leviers + 3 obstacles.",
+  3:"Vision + 3 indicateurs mesurables.",
+  4:"Valeurs et motivations.",
+  5:"Énergie : estime de soi / amour propre / confiance.",
+  6:"Confiance (suite) : preuves, retours, micro‑victoires.",
+  7:"Bilan KISS (Keep / Improve / Start / Stop).",
+  8:"Nouveau départ : cap & prochaines 48h.",
+  9:"Plan simple : 1 action / jour.",
+  10:"Préparer un message clé (CNV).",
+  11:"Décisions : Stop / Keep / Start.",
+  12:"Échelle de responsabilité.",
+  13:"Co‑développement éclair.",
+  14:"Leadership (Maxwell).",
+  15:"Bilan final + plan 30 jours."
 };
 
-// ---------------- Auth helpers ----------------
-function signToken(user) {
-  return jwt.sign(
-    { sub: user.id, role: user.role || "user" },
-    JWT_SECRET,
-    { expiresIn: "30d" }
-  );
-}
-function authMiddleware(req, res, next) {
-  try {
-    const hdr = req.headers.authorization || "";
-    const token = hdr.startsWith("Bearer ") ? hdr.slice(7) : null;
-    if (!token) return res.status(401).json({ error: "Non authentifié" });
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload; // { sub, role, iat, exp }
-    next();
-  } catch {
-    return res.status(401).json({ error: "Token invalide/expiré" });
-  }
-}
-function adminOnly(req, res, next) {
-  if (req.user?.role !== "admin") return res.status(403).json({ error: "Accès admin requis" });
-  next();
-}
-
-// ---------------- Seed admin (robuste) ----------------
-async function seedAdminIfNeeded() {
-  const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "";
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
-  const ADMIN_NAME = process.env.ADMIN_NAME || "Admin";
-
-  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
-    console.log("ℹ️  Seed admin ignoré (ADMIN_EMAIL ou ADMIN_PASSWORD manquant).");
-    return;
-  }
-  const users = loadUsers();
-  const targetEmail = String(ADMIN_EMAIL).toLowerCase();
-  const existing = Object.values(users).find(
-    (u) => u?.email && String(u.email).toLowerCase() === targetEmail
-  );
-  if (existing) {
-    if (existing.role !== "admin") {
-      existing.role = "admin";
-      saveUsers(users);
-      console.log(`🔐 Admin déjà existant, rôle mis à jour: ${existing.email}`);
-    } else {
-      console.log(`🔐 Admin déjà existant: ${existing.email}`);
-    }
-    return;
-  }
-  const id = "u_" + Math.random().toString(36).slice(2, 10);
-  const salt = await bcrypt.genSalt(10);
-  const hash = await bcrypt.hash(ADMIN_PASSWORD, salt);
-  users[id] = {
-    id,
-    email: ADMIN_EMAIL,
-    name: ADMIN_NAME,
-    role: "admin",
-    passwordHash: hash,
-    createdAt: new Date().toISOString()
-  };
-  saveUsers(users);
-  console.log(`✅ Admin seedé: ${ADMIN_EMAIL}`);
-}
-seedAdminIfNeeded().catch((e) => console.error("Seed admin error:", e));
-
-// ---------------- Static files ----------------
+// ---------- Static ----------
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+app.get("/admin", (_req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
 
-app.get("/admin", (_req, res) => {
-  const adminPath = path.join(__dirname, "public", "admin.html");
-  if (fs.existsSync(adminPath)) return res.sendFile(adminPath);
-  res.status(404).send("Admin UI non déployée.");
-});
+// ---------- Health ----------
+app.get("/healthz", (_req, res) => res.json({ ok:true }));
 
-// ---------------- Auth endpoints ----------------
-app.post("/api/auth/register", async (req, res) => {
-  try {
-    const { email, password, name } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "Email et mot de passe requis" });
-
-    const users = loadUsers();
-    const exists = Object.values(users).find(
-      (u) => u?.email && String(u.email).toLowerCase() === String(email).toLowerCase()
-    );
-    if (exists) return res.status(400).json({ error: "Email déjà utilisé" });
-
-    const id = "u_" + Math.random().toString(36).slice(2, 10);
-    const hash = await bcrypt.hash(String(password), 10);
-    users[id] = {
-      id,
-      email: String(email).toLowerCase(),
-      name: name?.trim() || null,
-      role: "user",
-      passwordHash: hash,
-      createdAt: new Date().toISOString()
-    };
-    saveUsers(users);
-
-    // Initialiser méta
-    setMeta(id, { name: users[id].name || null });
-
-    const token = signToken(users[id]);
-    res.json({ token, user: { id, email: users[id].email, name: users[id].name, role: "user" } });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-});
-
-app.post("/api/auth/login", async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "Email et mot de passe requis" });
-
-    const users = loadUsers();
-    const user = Object.values(users).find(
-      (u) => u?.email && String(u.email).toLowerCase() === String(email).toLowerCase()
-    );
-    if (!user) return res.status(401).json({ error: "Identifiants invalides" });
-
-    const ok = await bcrypt.compare(String(password), user.passwordHash || "");
-    if (!ok) return res.status(401).json({ error: "Identifiants invalides" });
-
-    const token = signToken(user);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-});
-
-app.get("/api/me", authMiddleware, (req, res) => {
+// ---------- Auth API ----------
+app.post("/api/auth/register", (req, res) => {
+  const { email, password, name } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error:"missing_fields" });
   const users = loadUsers();
-  const user = users[req.user.sub];
-  if (!user) return res.status(401).json({ error: "Utilisateur introuvable" });
-  const meta = getMeta(user.id);
-  res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role }, meta });
+  const exists = Object.values(users).find(u => u.email?.toLowerCase() === String(email).toLowerCase());
+  if (exists) return res.status(409).json({ error:"email_taken" });
+
+  const id = "u_" + Math.random().toString(36).slice(2, 10);
+  const passwordHash = bcrypt.hashSync(password, 10);
+  users[id] = {
+    id,
+    email: String(email).toLowerCase(),
+    name: name ? String(name).trim() : null,
+    role: "user",
+    createdAt: new Date().toISOString(),
+    passwordHash
+  };
+  saveUsers(users);
+
+  const token = jwt.sign({ sub:id, role:"user" }, process.env.JWT_SECRET, { expiresIn:"30d" });
+  res.json({ token, user: { id, email: users[id].email, name: users[id].name, role: "user" }});
 });
 
-// ---------------- Journal API (protégée) ----------------
-app.get("/api/journal", authMiddleware, (req, res) => {
-  const day = Number(req.query.day || 1);
-  return res.json(getEntries(req.user.sub, day));
-});
-app.post("/api/journal/save", authMiddleware, (req, res) => {
-  const { day = 1, message = "", role = "user" } = req.body || {};
-  addEntry(req.user.sub, day, { role, message, date: new Date().toISOString() });
-  return res.json({ success: true });
+app.post("/api/auth/login", (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error:"missing_fields" });
+  const users = loadUsers();
+  const user = Object.values(users).find(u => u.email?.toLowerCase() === String(email).toLowerCase());
+  if (!user || !user.passwordHash || !bcrypt.compareSync(password, user.passwordHash))
+    return res.status(401).json({ error:"bad_credentials" });
+
+  const token = jwt.sign({ sub:user.id, role:user.role }, process.env.JWT_SECRET, { expiresIn:"30d" });
+  res.json({ token, user: { id:user.id, email:user.email, name:user.name, role:user.role }});
 });
 
-// ---------------- Meta API (protégée) ----------------
-app.get("/api/meta", authMiddleware, (_req, res) => {
-  res.json(getMeta(_req.user.sub));
-});
-app.post("/api/meta", authMiddleware, (req, res) => {
-  const meta = setMeta(req.user.sub, { name: req.body?.name, disc: req.body?.disc });
-  res.json({ success: true, meta });
+app.get("/api/me", requireAuth, (req, res) => {
+  const users = loadUsers();
+  const u = users[req.user.sub];
+  if (!u) return res.status(404).json({ error:"not_found" });
+  res.json({ user: { id:u.id, email:u.email, name:u.name, role:u.role } });
 });
 
-// ---------------- IA helpers ----------------
+// ---------- Journal API (par user & jour) ----------
+app.get("/api/journal", requireAuth, (req, res) => {
+  const day = String(req.query.day || "1");
+  const db  = loadJournal();
+  const arr = Array.isArray(db[day]) ? db[day] : [];
+  const mine = arr.filter(m => m.userId === req.user.sub);
+  res.json(mine);
+});
+
+app.post("/api/journal/save", requireAuth, (req, res) => {
+  const { day=1, message="", role="user" } = req.body || {};
+  const d = String(day);
+  const db = loadJournal();
+  const arr = Array.isArray(db[d]) ? db[d] : [];
+  arr.push({ role, message, userId: req.user.sub, date: new Date().toISOString() });
+  db[d] = arr;
+  saveJournal(db);
+  res.json({ success:true });
+});
+
+// ---------- IA (Claude) ----------
 function systemPrompt(name, disc) {
   const base = getPromptText();
-  const note =
-    `\n\n[Contexte CoachBot]\nPrénom: ${name || "Inconnu"}\nDISC: ${disc || "À déduire"}\n` +
-    `Rappels: réponses courtes, concrètes, micro‑action 10 min, critère de réussite, tutoiement.`;
+  const note = `\n\n[Contexte CoachBot]\nPrénom: ${name||"Inconnu"}\nDISC: ${disc||"À déduire"}\n` +
+               `Rappels: réponses courtes, concrètes, micro‑action 10 min, critère de réussite, tutoiement.`;
   return base + note;
 }
 function makeUserPrompt(day, message) {
@@ -317,85 +231,34 @@ function makeUserPrompt(day, message) {
   return `Plan du jour (${day}) : ${plan}\n\nMessage de l'utilisateur : ${message}`;
 }
 
-// ---------------- Chat (non‑stream) ----------------
-app.post("/api/chat", authMiddleware, async (req, res) => {
-  try {
-    const { message, day = 1, provider = "anthropic" } = req.body ?? {};
-    const meta = getMeta(req.user.sub);
+app.post("/api/chat/stream", requireAuth, async (req, res) => {
+  const { message, day=1, provider="anthropic" } = req.body || {};
+  const users = loadUsers();
+  const me = users[req.user.sub];
 
-    // Heuristiques prénom / DISC
-    if (!meta.name) {
-      const n = maybeExtractName(message);
-      if (n && n.length >= 2) setMeta(req.user.sub, { name: n });
-    }
-    if (!meta.disc) {
-      const d = inferDISC(message);
-      if (d) setMeta(req.user.sub, { disc: d });
-    }
-
-    addEntry(req.user.sub, day, { role: "user", message, date: new Date().toISOString() });
-
-    const system = systemPrompt(getMeta(req.user.sub).name, getMeta(req.user.sub).disc);
-    const user   = makeUserPrompt(day, message);
-
-    if ((provider === "anthropic" || provider === "claude")) {
-      if (!process.env.ANTHROPIC_API_KEY)
-        return res.status(500).json({ error: "ANTHROPIC_API_KEY manquante" });
-
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": process.env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({
-          model: ANTHROPIC_MODEL,
-          max_tokens: 800, temperature: 0.4,
-          system,
-          messages: [{ role: "user", content: user }]
-        })
-      });
-
-      const text = await r.text();
-      let data; try { data = JSON.parse(text); } catch { data = null; }
-
-      if (!r.ok) {
-        console.error("Claude error:", r.status, text);
-        return res.status(500).json({ error: `Claude error ${r.status}`, details: text });
-      }
-
-      const reply = data?.content?.[0]?.text || "Je n’ai pas compris, peux-tu reformuler ?";
-      addEntry(req.user.sub, day, { role: "ai", message: reply, date: new Date().toISOString() });
-      return res.json({ reply });
-    }
-
-    return res.status(400).json({ error: "Fournisseur inconnu ou non activé" });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-});
-
-// ---------------- Chat streaming (SSE) ----------------
-app.post("/api/chat/stream", authMiddleware, async (req, res) => {
-  const { message, day = 1, provider = "anthropic" } = req.body ?? {};
-  const meta0 = getMeta(req.user.sub);
-
-  // Heuristiques
-  if (!meta0.name) {
+  // heuristiques nom / DISC
+  let { name } = me || {};
+  if (!name) {
     const n = maybeExtractName(message);
-    if (n && n.length >= 2) setMeta(req.user.sub, { name: n });
+    if (n && me) { me.name = n; saveUsers(users); name = n; }
   }
-  if (!meta0.disc) {
+  let disc = me?.disc || null;
+  if (!disc) {
     const d = inferDISC(message);
-    if (d) setMeta(req.user.sub, { disc: d });
+    if (d && me) { me.disc = d; saveUsers(users); disc = d; }
   }
 
-  addEntry(req.user.sub, day, { role: "user", message, date: new Date().toISOString() });
+  // log user message
+  {
+    const db = loadJournal();
+    const dkey = String(day);
+    const arr = Array.isArray(db[dkey]) ? db[dkey] : [];
+    arr.push({ role:"user", message, userId:req.user.sub, date: new Date().toISOString() });
+    db[dkey] = arr;
+    saveJournal(db);
+  }
 
-  const meta = getMeta(req.user.sub);
-  const system = systemPrompt(meta.name, meta.disc);
+  const system = systemPrompt(name, disc);
   const user   = makeUserPrompt(day, message);
 
   res.setHeader("Content-Type", "text/event-stream");
@@ -408,7 +271,7 @@ app.post("/api/chat/stream", authMiddleware, async (req, res) => {
 
   try {
     if ((provider === "anthropic" || provider === "claude")) {
-      if (!process.env.ANTHROPIC_API_KEY) { send({ error: "ANTHROPIC_API_KEY manquante" }); return end(); }
+      if (!process.env.ANTHROPIC_API_KEY) { send({ error:"ANTHROPIC_API_KEY manquante" }); return end(); }
 
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -418,17 +281,16 @@ app.post("/api/chat/stream", authMiddleware, async (req, res) => {
           "content-type": "application/json"
         },
         body: JSON.stringify({
-          model: ANTHROPIC_MODEL,
+          model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022",
           max_tokens: 800, temperature: 0.4, stream: true,
-          system,
-          messages: [{ role: "user", content: user }]
+          system, messages: [{ role:"user", content:user }]
         })
       });
 
       if (!resp.ok || !resp.body) {
         const t = await resp.text().catch(()=> "");
         console.error("Claude stream error:", resp.status, t);
-        send({ error: `Claude stream error ${resp.status}: ${t}` });
+        send({ error: `Claude stream error ${resp.status}` });
         return end();
       }
 
@@ -449,62 +311,93 @@ app.post("/api/chat/stream", authMiddleware, async (req, res) => {
               const delta = evt.delta.text || "";
               if (delta) { full += delta; send({ text: delta }); }
             }
-          } catch { /* ignore malformed lines */ }
+          } catch {}
         }
       }
-      if (full) addEntry(req.user.sub, day, { role: "ai", message: full, date: new Date().toISOString() });
+      if (full) {
+        const db = loadJournal();
+        const dkey = String(day);
+        const arr = Array.isArray(db[dkey]) ? db[dkey] : [];
+        arr.push({ role:"ai", message: full, userId: req.user.sub, date: new Date().toISOString() });
+        db[dkey] = arr;
+        saveJournal(db);
+      }
       return end();
     }
 
-    send({ error: "Fournisseur inconnu ou non activé" }); return end();
+    send({ error:"provider_not_enabled" }); return end();
   } catch (e) {
     console.error(e);
-    send({ error: "Erreur serveur" }); return end();
+    send({ error:"server_error" }); return end();
   }
 });
 
-// ---------------- Admin API (protégée + rôle admin) ----------------
-app.get("/api/admin/stats", authMiddleware, adminOnly, (_req, res) => {
-  const users = loadUsers();
-  const journal = loadJournal();
-
-  const nbUsers = Object.keys(users).length;
-  const nbEntries = Object.values(journal).reduce((acc, days) => {
-    if (!days || typeof days !== "object") return acc;
-    return acc + Object.values(days).reduce((a, arr) => a + (Array.isArray(arr) ? arr.length : 0), 0);
-  }, 0);
-
-  res.json({
-    users: nbUsers,
-    entries: nbEntries,
-  });
+// ---------- Admin API ----------
+app.get("/api/admin/users", requireAdmin, (_req, res) => {
+  const u = loadUsers();
+  res.json(Object.values(u));
 });
 
-app.get("/api/admin/users", authMiddleware, adminOnly, (_req, res) => {
-  const users = loadUsers();
-  const list = Object.values(users).map(u => ({
-    id: u.id, email: u.email, name: u.name || null, role: u.role || "user", createdAt: u.createdAt
-  }));
-  res.json(list);
-});
-
-app.post("/api/admin/user/role", authMiddleware, adminOnly, (req, res) => {
+app.post("/api/admin/user/role", requireAdmin, (req, res) => {
   const { userId, role } = req.body || {};
-  if (!userId || !role) return res.status(400).json({ error: "userId et role requis" });
-  const users = loadUsers();
-  if (!users[userId]) return res.status(404).json({ error: "Utilisateur introuvable" });
-  users[userId].role = role;
-  saveUsers(users);
-  res.json({ success: true });
+  if (!userId || !role) return res.status(400).json({ error:"missing" });
+  const u = loadUsers();
+  if (!u[userId]) return res.status(404).json({ error:"not_found" });
+  u[userId].role = role === "admin" ? "admin" : "user";
+  saveUsers(u);
+  res.json({ success:true });
 });
 
-// ---------------- Health endpoints ----------------
-app.get("/healthz", (_req, res) => res.json({ ok: true }));
-app.get("/healthz/ready", (_req, res) => {
-  const okClaude = !!process.env.ANTHROPIC_API_KEY;
-  res.json({ ok: true, claude: okClaude, time: new Date().toISOString() });
+app.get("/api/admin/stats", requireAdmin, (_req, res) => {
+  try {
+    const users = loadUsers();
+    const journal = loadJournal();
+
+    const totalUsers = Object.values(users).filter(
+      u => u && typeof u === "object" && u.email
+    ).length;
+
+    let totalMessages = 0;
+    const perDay = [];
+    for (let d=1; d<=15; d++){
+      const arr = Array.isArray(journal[String(d)]) ? journal[String(d)] : [];
+      totalMessages += arr.length;
+      perDay.push({ day:d, count: arr.length });
+    }
+    res.json({ totalUsers, totalMessages, perDay });
+  } catch (e) {
+    console.error("admin/stats error:", e);
+    res.status(500).json({ error:"stats_failed" });
+  }
 });
 
-// ---------------- Start ----------------
+app.post("/api/admin/repair", requireAdmin, (_req, res) => {
+  try {
+    const users = loadUsers();
+    let changed = false;
+    const fixed = {};
+    for (const [id, u] of Object.entries(users || {})) {
+      if (!u || typeof u !== "object") { changed = true; continue; }
+      const email = (u.email || "").toLowerCase().trim();
+      if (!id || !email) { changed = true; continue; }
+      fixed[id] = {
+        id,
+        email,
+        name: (u.name || "").trim() || null,
+        role: u.role === "admin" ? "admin" : "user",
+        createdAt: u.createdAt || new Date().toISOString(),
+        passwordHash: u.passwordHash || null,
+        disc: u.disc || null
+      };
+    }
+    if (changed) saveUsers(fixed);
+    res.json({ success:true, before:Object.keys(users||{}).length, after:Object.keys(fixed).length, changed });
+  } catch (e) {
+    console.error("admin/repair error:", e);
+    res.status(500).json({ error:"repair_failed" });
+  }
+});
+
+// ---------- Start ----------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Serveur en ligne sur le port ${PORT}`));
