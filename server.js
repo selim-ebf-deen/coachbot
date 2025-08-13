@@ -1,3 +1,5 @@
+// server.js — CoachBot (complet)
+// ES modules
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
@@ -7,75 +9,106 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 dotenv.config();
 
-// ---------- App ----------
+// ---------------- App & middlewares ----------------
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// ---------- Paths ----------
+// ---------------- Paths / filenames ----------------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ---------- Storage (JSON) ----------
-const DB_PATH = process.env.DB_PATH || "/data/journal.json";     // discussions par jour
-const META_PATH = process.env.META_PATH || "/data/meta.json";    // prénom + DISC
-const PROMPT_PATH = process.env.PROMPT_PATH || path.join(__dirname, "prompt.txt");
+const DB_PATH    = process.env.DB_PATH    || "/data/journal.json"; // discussions par jour
+const META_PATH  = process.env.META_PATH  || "/data/meta.json";    // prénom + DISC
+const PROMPT_PATH= process.env.PROMPT_PATH|| path.join(__dirname, "prompt.txt");
 
+// ---------------- Utils: files & JSON ----------------
 function ensureDir(p) { fs.mkdirSync(path.dirname(p), { recursive: true }); }
-function loadJSON(p, fallback) { try { return JSON.parse(fs.readFileSync(p, "utf-8")); } catch { return fallback; } }
+function loadJSON(p, fallback) {
+  try { return JSON.parse(fs.readFileSync(p, "utf-8")); }
+  catch { return fallback; }
+}
 function saveJSON(p, obj) { ensureDir(p); fs.writeFileSync(p, JSON.stringify(obj, null, 2)); }
-
-function loadDB() { return loadJSON(DB_PATH, {}); }
-function saveDB(db) { saveJSON(DB_PATH, db); }
-function getEntries(day) {
-  const db = loadDB();
-  return db[String(day)] || [];
-}
-function addEntry(day, entry) {
-  const db = loadDB();
-  const key = String(day);
-  if (!db[key]) db[key] = [];
-  db[key].push(entry);
-  saveDB(db);
-}
-
-function loadMeta() { return loadJSON(META_PATH, { name: null, disc: null }); }
-function saveMeta(meta) { saveJSON(META_PATH, meta); }
 
 function getPromptText() {
   try { return fs.readFileSync(PROMPT_PATH, "utf-8"); }
-  catch { return "Tu es CoachBot. Réponds en français, de façon brève et concrète."; }
+  catch { return "Tu es CoachBot. Réponds en français, de façon brève, concrète, en tutoyant."; }
 }
 
-// ---------- Heuristiques: prénom & DISC ----------
+// ---------------- DB helpers (robustes) ----------------
+function loadDB() {
+  const raw = loadJSON(DB_PATH, {});
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return raw;
+}
+function saveDB(db) { saveJSON(DB_PATH, db); }
+
+function getEntries(day) {
+  const db  = loadDB();
+  const key = String(day);
+  const val = db[key];
+  if (Array.isArray(val)) return val;
+  if (val && typeof val === "object") return [val]; // compat anciens enregistrements
+  return [];
+}
+function addEntry(day, entry) {
+  const db  = loadDB();
+  const key = String(day);
+  const val = db[key];
+
+  let arr;
+  if (Array.isArray(val)) arr = val;
+  else if (val && typeof val === "object") arr = [val];
+  else arr = [];
+
+  arr.push(entry);
+  db[key] = arr;
+  saveDB(db);
+}
+
+// ---------------- Meta (prénom + DISC) ----------------
+function loadMeta() { return loadJSON(META_PATH, { name: null, disc: null }); }
+function saveMeta(meta) { saveJSON(META_PATH, meta); }
+
+// ---------------- Migration douce au démarrage ----------------
+(function migrateJournal() {
+  const db = loadDB();
+  let changed = false;
+  for (const k of Object.keys(db)) {
+    const v = db[k];
+    if (Array.isArray(v)) continue;
+    if (v && typeof v === "object") { db[k] = [v]; changed = true; }
+    else { db[k] = []; changed = true; }
+  }
+  if (changed) saveDB(db);
+})();
+
+// ---------------- Heuristiques prénom & DISC ----------------
 function maybeExtractName(text) {
-  // Détecte "je m'appelle X", "moi c'est X", ou mot unique capitalisé
-  const t = text.trim();
+  const t = (text || "").trim();
   let m = t.match(/je m(?:'|e)appelle\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i)
        || t.match(/moi c['’]est\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i)
        || (t.split(/\s+/).length === 1 ? [null, t] : null);
   return m ? m[1].trim().replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ]+|[^A-Za-zÀ-ÖØ-öø-ÿ]+$/g,"") : null;
 }
-
 function inferDISC(text) {
-  // Heuristique très simple — améliorable
-  const t = text.trim();
+  const t = (text || "").trim();
   const len = t.length;
-  const ex = (t.match(/!/g)||[]).length;
+  const ex  = (t.match(/!/g)||[]).length;
   const hasCaps = /[A-Z]{3,}/.test(t);
   const hasNums = /\d/.test(t);
-  const asksDetail = /(détail|exact|précis|critère|mesurable|plan|checklist)/i.test(t);
+  const asksDetail  = /(détail|exact|précis|critère|mesurable|plan|checklist)/i.test(t);
   const caresPeople = /(écoute|relation|aider|ensemble|émotion|ressenti|bienveillance)/i.test(t);
   const wantsAction = /(action|résultat|vite|maintenant|objectif|deadline|priorit)/i.test(t);
 
-  if (wantsAction && (ex>0 || hasCaps)) return "D";            // Dominant
-  if (ex>1 || /cool|idée|créatif|enthous|fun/i.test(t)) return "I"; // Influent
-  if (caresPeople || /calme|rassure|routine|habitude/i.test(t)) return "S"; // Stable
-  if (asksDetail || hasNums || len>240) return "C";             // Consciencieux
+  if (wantsAction && (ex>0 || hasCaps)) return "D";
+  if (ex>1 || /cool|idée|créatif|enthous|fun/i.test(t)) return "I";
+  if (caresPeople || /calme|rassure|routine|habitude/i.test(t)) return "S";
+  if (asksDetail || hasNums || len>240) return "C";
   return null;
 }
 
-// ---------- Contexte programme (affiché côté client, réutilisé côté serveur si besoin) ----------
+// ---------------- Plans du jour (référence) ----------------
 const plans = {
   1:"Jour 1 — Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que ‘réussir’ signifie concrètement.",
   2:"Jour 2 — Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",
@@ -94,11 +127,11 @@ const plans = {
   15:"Jour 15 — Bilan final + plan 30 jours."
 };
 
-// ---------- Static UI ----------
+// ---------------- Static UI ----------------
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
-// ---------- Journal API ----------
+// ---------------- Journal API ----------------
 app.get("/api/journal", (req, res) => {
   const day = Number(req.query.day || 1);
   return res.json(getEntries(day));
@@ -109,7 +142,7 @@ app.post("/api/journal/save", (req, res) => {
   return res.json({ success: true });
 });
 
-// ---------- Meta API (prénom / DISC) ----------
+// ---------------- Meta API (prénom / DISC) ----------------
 app.get("/api/meta", (_req, res) => res.json(loadMeta()));
 app.post("/api/meta", (req, res) => {
   const meta = loadMeta();
@@ -119,26 +152,26 @@ app.post("/api/meta", (req, res) => {
   res.json({ success: true, meta });
 });
 
-// ---------- Helpers IA ----------
+// ---------------- IA helpers ----------------
 function systemPrompt(name, disc) {
-  // Injecte le prompt externe + variables
   const base = getPromptText();
-  const note = `\n\n[Contexte CoachBot]\nPrénom: ${name || "Inconnu"}\nDISC: ${disc || "À déduire"}\nRappels: réponses courtes, concrètes, micro‑action 10 min, critère de réussite, tutoiement.`;
+  const note =
+    `\n\n[Contexte CoachBot]\nPrénom: ${name || "Inconnu"}\nDISC: ${disc || "À déduire"}\n` +
+    `Rappels: réponses courtes, concrètes, micro‑action 10 min, critère de réussite, tutoiement.`;
   return base + note;
 }
-
 function makeUserPrompt(day, message) {
   const plan = plans[Number(day)] || "Plan non spécifié.";
   return `Plan du jour (${day}) : ${plan}\n\nMessage de l'utilisateur : ${message}`;
 }
 
-// ---------- Chat JSON (fallback non-stream) ----------
+// ---------------- Chat non-stream (diagnostic / fallback) ----------------
 app.post("/api/chat", async (req, res) => {
   try {
     const { message, day = 1, provider = "anthropic" } = req.body ?? {};
     const meta = loadMeta();
 
-    // Tenter d'extraire prénom / DISC si inconnus
+    // Extraire prénom / DISC si inconnus
     if (!meta.name) {
       const n = maybeExtractName(message);
       if (n && n.length >= 2) { meta.name = n; saveMeta(meta); }
@@ -151,10 +184,12 @@ app.post("/api/chat", async (req, res) => {
     addEntry(day, { role: "user", message, date: new Date().toISOString() });
 
     const system = systemPrompt(meta.name, meta.disc);
-    const user = makeUserPrompt(day, message);
+    const user   = makeUserPrompt(day, message);
 
     if (provider === "anthropic" || provider === "claude") {
-      if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: "ANTHROPIC_API_KEY manquante" });
+      if (!process.env.ANTHROPIC_API_KEY)
+        return res.status(500).json({ error: "ANTHROPIC_API_KEY manquante" });
+
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -169,15 +204,20 @@ app.post("/api/chat", async (req, res) => {
           messages: [{ role: "user", content: user }]
         })
       });
-      const data = await r.json();
-      if (!r.ok) return res.status(500).json({ error: "Claude error", details: data });
-      const reply = data?.content?.[0]?.text || "Je n’ai pas compris, peux-tu reformuler ?";
 
+      const text = await r.text();
+      let data; try { data = JSON.parse(text); } catch { data = null; }
+
+      if (!r.ok) {
+        console.error("Claude error:", r.status, text);
+        return res.status(500).json({ error: `Claude error ${r.status}`, details: text });
+      }
+
+      const reply = data?.content?.[0]?.text || "Je n’ai pas compris, peux-tu reformuler ?";
       addEntry(day, { role: "ai", message: reply, date: new Date().toISOString() });
       return res.json({ reply });
     }
 
-    // (OpenAI/Gemini gardés pour compat, mêmes modèles que précédemment)
     return res.status(400).json({ error: "Fournisseur inconnu ou non activé" });
   } catch (e) {
     console.error(e);
@@ -185,12 +225,12 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// ---------- Chat STREAM (SSE) ----------
+// ---------------- Chat streaming (SSE) ----------------
 app.post("/api/chat/stream", async (req, res) => {
   const { message, day = 1, provider = "anthropic" } = req.body ?? {};
   const meta = loadMeta();
 
-  // extractions heuristiques
+  // Heuristiques
   if (!meta.name) {
     const n = maybeExtractName(message);
     if (n && n.length >= 2) { meta.name = n; saveMeta(meta); }
@@ -203,7 +243,7 @@ app.post("/api/chat/stream", async (req, res) => {
   addEntry(day, { role: "user", message, date: new Date().toISOString() });
 
   const system = systemPrompt(meta.name, meta.disc);
-  const user = makeUserPrompt(day, message);
+  const user   = makeUserPrompt(day, message);
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -216,6 +256,7 @@ app.post("/api/chat/stream", async (req, res) => {
   try {
     if (provider === "anthropic" || provider === "claude") {
       if (!process.env.ANTHROPIC_API_KEY) { send({ error: "ANTHROPIC_API_KEY manquante" }); return end(); }
+
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -230,11 +271,15 @@ app.post("/api/chat/stream", async (req, res) => {
           messages: [{ role: "user", content: user }]
         })
       });
+
       if (!resp.ok || !resp.body) {
-        const t = await resp.text().catch(()=> ""); send({ error: "Claude stream error", details: t }); return end();
+        const t = await resp.text().catch(()=> "");
+        console.error("Claude stream error:", resp.status, t);
+        send({ error: `Claude stream error ${resp.status}: ${t}` });
+        return end();
       }
 
-      const reader = resp.body.getReader();
+      const reader  = resp.body.getReader();
       const decoder = new TextDecoder();
       let full = "";
       while (true) {
@@ -251,7 +296,7 @@ app.post("/api/chat/stream", async (req, res) => {
               const delta = evt.delta.text || "";
               if (delta) { full += delta; send({ text: delta }); }
             }
-          } catch { /* ignore */ }
+          } catch { /* ignore malformed lines */ }
         }
       }
       if (full) addEntry(day, { role: "ai", message: full, date: new Date().toISOString() });
@@ -265,5 +310,6 @@ app.post("/api/chat/stream", async (req, res) => {
   }
 });
 
+// ---------------- Start ----------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Serveur en ligne sur le port ${PORT}`));
