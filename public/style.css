@@ -1,25 +1,227 @@
-/* ======== Corrections UI demandées ======== */
+/* =========================================================
+   COACHBOT — STYLE GLOBAL (Tailwind requis pour @apply)
+   ========================================================= */
 
-/* Aligner proprement le libellé “Connecté : Prénom/Email” */
-.topbar, .header, .toolbar {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
+/* ---- Reset/Body ---- */
+:root {
+  --primary: #22d3ee; /* cyan-400 */
 }
-#who.is-logged { font-weight: 600; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  @apply bg-slate-950 text-slate-200;
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
 
-/* Que le texte passe en blanc au survol des boutons principaux */
-button:hover, .btn:hover, .btn-primary:hover, .btn-secondary:hover {
+/* ---- Layout principal ---- */
+.container {
+  @apply max-w-5xl mx-auto px-4 md:px-6;
+  padding-top: 18px;
+  padding-bottom: 24px;
+}
+
+/* ---- Topbar ---- */
+.topbar {
+  @apply flex items-center justify-between mb-4;
+}
+.topbar-left {
+  @apply flex items-center gap-3;
+}
+.topbar-right {
+  @apply flex items-center gap-2;
+}
+
+/* Bandeau “Connecté : …” bien aligné */
+#who {
+  @apply inline-flex items-center gap-2 text-slate-300;
+  vertical-align: middle;
+  white-space: nowrap;
+  margin-right: .5rem;
+}
+#who.is-logged { @apply font-semibold; }
+
+/* ---- Cards / Sections ---- */
+.card {
+  @apply rounded-2xl bg-slate-900/60 ring-1 ring-white/10 p-4 md:p-6;
+}
+.card-title {
+  @apply text-sm font-medium text-slate-300 mb-2;
+}
+
+/* =========================================================
+   BOUTONS & INPUTS
+   ========================================================= */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-medium transition active:scale-[.98];
+}
+.btn-primary {
+  @apply bg-cyan-400 text-slate-900 shadow;
+}
+.btn-secondary {
+  @apply bg-slate-800/80 ring-1 ring-white/10 text-slate-200;
+}
+
+/* Texte blanc au survol (lisibilité sur bleu) */
+button:hover,
+.btn:hover,
+.btn-primary:hover,
+.btn-secondary:hover,
+#adminBtn:hover,
+#loginBtn:hover,
+#logoutBtn:hover,
+#showPlan:hover {
   color: #fff !important;
 }
 
-/* Bulles : s'assurer que le contenu wrappe proprement */
-.bubble { word-wrap: break-word; white-space: pre-wrap; }
-.bubble .btxt { display: inline; }
-
-/* Zone de saisie bien contenue et responsive */
-#msg {
-  resize: none;
-  max-height: 220px;     /* limite le debordement */
-  overflow: auto;
+/* Select / Textarea */
+.input-select {
+  @apply rounded-xl bg-slate-900/70 ring-1 ring-white/10 px-3.5 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/60;
 }
+.input-textarea {
+  @apply w-full min-h-[88px] rounded-xl bg-slate-900/70 ring-1 ring-white/10 p-3.5 text-slate-200
+         placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400/60;
+  max-height: 42vh;         /* limite la hauteur */
+  overflow-y: auto;
+  resize: none;             /* auto-resize géré en JS */
+  line-height: 1.45;
+}
+
+/* Menu items (si menu contextuel) */
+.menu-item {
+  @apply w-full text-left px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800;
+}
+
+/* Lien admin discret */
+.link {
+  @apply text-cyan-300 hover:text-cyan-200 underline underline-offset-2;
+}
+
+/* =========================================================
+   ZONE CHAT
+   ========================================================= */
+#chat {
+  @apply overflow-y-auto;
+  max-height: 56vh;         /* scroll interne maîtrisé */
+  padding-right: 2px;       /* évite chevauchement scrollbar */
+}
+
+/* Bulles */
+.bubble {
+  @apply max-w-[82ch] w-fit rounded-xl px-4 py-3 mb-3 leading-relaxed text-[15px];
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;     /* respecte sauts de ligne */
+}
+.bubble.me {
+  @apply bg-emerald-900/40 text-emerald-50 ring-1 ring-emerald-400/20 ml-auto;
+}
+.bubble.ai {
+  @apply bg-rose-900/30 text-rose-50 ring-1 ring-rose-400/20;
+}
+.dot {
+  @apply inline-block w-2.5 h-2.5 rounded-full mr-2 align-[2px];
+}
+.dot.me { @apply bg-emerald-400; }  /* user = vert */
+.dot.ai { @apply bg-rose-400; }     /* coach = rouge */
+
+/* =========================================================
+   COMPOSER (zone message + boutons)
+   ========================================================= */
+.composer {
+  @apply flex flex-col gap-2;
+}
+.composer-row {
+  @apply flex items-end gap-2;
+}
+.composer textarea#msg {
+  @apply flex-1 input-textarea;
+}
+.composer .send-wrap {
+  @apply shrink-0 flex items-center gap-2;
+}
+.provider {
+  @apply text-xs text-slate-400;
+}
+
+/* =========================================================
+   PANNEAU JOUR / PLAN
+   ========================================================= */
+.plan-row {
+  @apply flex items-center gap-2;
+}
+#plan {
+  @apply text-sm text-slate-300;
+}
+
+/* =========================================================
+   MODALE AUTH
+   ========================================================= */
+#scrim {
+  @apply fixed inset-0 bg-black/50 hidden items-center justify-center z-50;
+}
+.modal {
+  @apply w-[92vw] max-w-[480px] rounded-2xl bg-slate-900 ring-1 ring-white/10 p-4 md:p-6 text-slate-200;
+}
+.modal h3 { @apply text-base font-semibold mb-3; }
+.modal .tabs { @apply flex gap-2 mb-3; }
+.modal .tab {
+  @apply flex-1 text-center py-2 rounded-lg ring-1 ring-white/10 cursor-pointer;
+}
+.modal .tab.active { @apply bg-cyan-400 text-slate-900 font-medium; }
+.modal .row { @apply mb-3; }
+.modal .input {
+  @apply w-full rounded-xl bg-slate-900/70 ring-1 ring-white/10 px-3.5 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/60;
+}
+.modal .help { @apply text-xs text-slate-400; }
+
+/* Badge confirmation (connexion OK) */
+.badge-ok {
+  @apply mt-2 inline-flex items-center gap-2 rounded-lg bg-emerald-600/20 text-emerald-200 px-2.5 py-1 text-sm;
+}
+
+/* Bouton œil mot de passe */
+.eye-btn {
+  @apply absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200;
+}
+
+/* Fermeture modale */
+.modal-close {
+  @apply absolute right-3 top-3 text-slate-400 hover:text-slate-200;
+}
+
+/* =========================================================
+   TABLEAU ADMIN (si page admin.html)
+   ========================================================= */
+.table {
+  @apply w-full border-collapse text-sm;
+}
+.table th, .table td {
+  @apply border-b border-slate-800 px-3 py-2 text-left;
+}
+.table th { @apply text-slate-400 font-medium; }
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 640px) {
+  #chat { max-height: 50vh; }
+  .bubble { @apply text-[14px]; }
+  .composer-row { @apply flex-col items-stretch; }
+  .send-wrap { @apply justify-end; }
+}
+
+/* =========================================================
+   ACCENTS & DÉTAILS
+   ========================================================= */
+/* Forcer le blanc au survol des principaux boutons si conflits de cascade */
+#adminBtn:hover, #loginBtn:hover, #logoutBtn:hover, #showPlan:hover {
+  color: #fff !important;
+}
+
+/* Petite animation subtile au hover des boutons primaires */
+.btn-primary { transition: transform .06s ease, background-color .18s ease, color .18s ease; }
+.btn-primary:hover { transform: translateY(-1px); }
+
+/* Liens discrets */
+a { @apply text-cyan-300 hover:text-cyan-200; text-decoration: none; }
