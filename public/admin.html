@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — CoachBot</title>
+<style>
+body{margin:0;background:#f8f9fa;color:#202124;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:24px 16px}
+h1{font-size:20px;margin:0 0 16px}
+.card{background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.row{display:flex;gap:12px;align-items:center;justify-content:space-between;border-bottom:1px solid #eee;padding:8px 0}
+.row:last-child{border-bottom:none}
+.badge{background:#e8f0fe;border:1px solid #d2e3fc;padding:4px 8px;border-radius:999px}
+button{border:none;background:#1a73e8;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
+button.alt{background:#5f6368}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
+th{color:#5f6368}
+.topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+input{padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px}
+.info{color:#5f6368}
+.err{color:#d93025}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1>Admin — CoachBot</h1>
+    <div>
+      <button id="refreshBtn" class="alt">Rafraîchir</button>
+      <button onclick="location.href='/'">Retour app</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div><strong>Statistiques</strong> <span id="statInfo" class="info"></span></div>
+      <div id="statResume" class="badge">–</div>
+    </div>
+    <div id="perDay" style="margin-top:10px"></div>
+    <div id="statErr" class="err" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <strong>Utilisateurs</strong>
+      <div>
+        <label class="info">Filtrer</label>
+        <input id="q" placeholder="email ou nom…" />
+      </div>
+    </div>
+    <div style="overflow:auto">
+      <table id="usersTbl">
+        <thead><tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Créé</th><th>Action</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="usersErr" class="err" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+function token(){ return localStorage.getItem('coachbot.token')||null; }
+async function api(path, opt={}){
+  const headers = Object.assign({ "Content-Type":"application/json" }, opt.headers||{});
+  const t = token(); if(t) headers.Authorization = 'Bearer '+t;
+  const r = await fetch(path, Object.assign({},opt,{headers}));
+  return r;
+}
+
+async function loadStats(){
+  const sErr = document.getElementById('statErr');
+  sErr.textContent='';
+  try{
+    const r = await api('/api/admin/stats');
+    if(!r.ok){ sErr.textContent='Accès interdit (réservé admin).'; return; }
+    const d = await r.json();
+    document.getElementById('statResume').textContent = `${d.totalUsers} users • ${d.totalMessages} messages`;
+    document.getElementById('statInfo').textContent = ' (J1…J15)';
+    const box = document.getElementById('perDay');
+    box.innerHTML = d.perDay.map(x=> `<div class="row"><div>Jour ${x.day}</div><div class="badge">${x.count}</div></div>`).join('');
+  }catch{ sErr.textContent='Erreur chargement stats.'; }
+}
+
+function drawUsers(list){
+  const q = (document.getElementById('q').value||'').trim().toLowerCase();
+  const tb = document.querySelector('#usersTbl tbody');
+  tb.innerHTML = '';
+  for(const u of list){
+    if(q && !(u.email.toLowerCase().includes(q) || (u.name||'').toLowerCase().includes(q))) continue;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${u.name||'—'}</td>
+      <td>${u.email}</td>
+      <td>${u.role}</td>
+      <td>${u.createdAt ? new Date(u.createdAt).toLocaleString() : '—'}</td>
+      <td>
+        <button data-id="${u.id}" data-role="${u.role==='admin'?'user':'admin'}">
+          ${u.role==='admin'?'Rétrograder':'Promouvoir admin'}
+        </button>
+      </td>`;
+    tb.appendChild(tr);
+  }
+  tb.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const userId = b.getAttribute('data-id');
+      const role   = b.getAttribute('data-role');
+      try{
+        const r = await api('/api/admin/user/role', { method:'POST', body: JSON.stringify({ userId, role }) });
+        if(r.ok){ loadUsers(); } else { alert('Action refusée.'); }
+      }catch{ alert('Erreur réseau'); }
+    });
+  });
+}
+
+async function loadUsers(){
+  const uErr = document.getElementById('usersErr');
+  uErr.textContent='';
+  try{
+    const r = await api('/api/admin/users');
+    if(!r.ok){ uErr.textContent='Accès interdit (réservé admin).'; return; }
+    const list = await r.json();
+    drawUsers(list);
+  }catch{ uErr.textContent='Erreur chargement utilisateurs.'; }
+}
+
+document.getElementById('refreshBtn').addEventListener('click', ()=>{ loadStats(); loadUsers(); });
+document.getElementById('q').addEventListener('input', loadUsers);
+
+// init
+loadStats(); loadUsers();
+</script>
+</body>
+</html>
