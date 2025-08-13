@@ -1,4 +1,4 @@
-// main.js — UI app + auth + chat streaming
+// main.js — UI app + auth + chat streaming (avec Enter/Shift+Enter + auto-resize)
 
 const $ = sel => document.querySelector(sel);
 const chat = $("#chat");
@@ -88,7 +88,24 @@ const plans = {
 function renderPlan(){ plan.textContent = plans[Number(daySel.value)] || ""; }
 renderPlan();
 
-// Events
+// ---------- Auto-resize du textarea ----------
+function autoResize(){
+  // Respecte min/max-height CSS
+  msg.style.height = 'auto';
+  const max = parseInt(getComputedStyle(msg).maxHeight || '0', 10) || 9999;
+  msg.style.height = Math.min(msg.scrollHeight, max) + 'px';
+}
+msg.addEventListener('input', autoResize);
+
+// ---------- Envoi au clavier ----------
+msg.addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// ---------- Events UI ----------
 showPlanBtn.addEventListener("click", renderPlan);
 loginBtn.addEventListener("click", ()=>showLogin(true));
 closeModal.addEventListener("click", ()=>showLogin(false));
@@ -160,12 +177,17 @@ async function loadJournal(){
 }
 daySel.addEventListener("change", loadJournal);
 
-// Envoi message (streaming)
-sendBtn.addEventListener("click", async ()=>{
+// ---------- Envoi message (bouton + streaming) ----------
+sendBtn.addEventListener("click", sendMessage);
+
+async function sendMessage(){
   const text = (msg.value||"").trim();
   if(!text) return;
+
   bubble("user", text);
   msg.value = "";
+  autoResize(); // remet la hauteur au propre après envoi
+
   const controller = new AbortController();
 
   try{
@@ -202,4 +224,4 @@ sendBtn.addEventListener("click", async ()=>{
   }catch{
     bubble("ai","Erreur réseau.");
   }
-});
+}
