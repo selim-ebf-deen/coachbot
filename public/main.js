@@ -1,85 +1,89 @@
-// main.js — UI app + auth + chat streaming (Enter/Shift+Enter + auto-resize + bulles courtes)
+// main.js — UI app + auth + chat streaming (Enter/Shift+Enter + auto-resize + multi-bulles)
 
-const $ = sel => document.querySelector(sel);
+const $ = (sel) => document.querySelector(sel);
 
-const chat        = $("#chat");
-const daySel      = $("#daySel");
+// UI elements
+const chat = $("#chat");
+const daySel = $("#daySel");
 const showPlanBtn = $("#showPlan");
-const plan        = $("#plan");
-const msg         = $("#msg");
-const sendBtn     = $("#sendBtn");
-
-const who         = $("#who");
-const loginBtn    = $("#loginBtn");
-const logoutBtn   = $("#logoutBtn");
-const adminBtn    = $("#adminBtn");
+const plan = $("#plan");
+const msg = $("#msg");
+const sendBtn = $("#sendBtn");
+const who = $("#who");
+const loginBtn = $("#loginBtn");
+const logoutBtn = $("#logoutBtn");
+const adminBtn = $("#adminBtn");
 const providerSel = $("#providerSel");
 
-const scrim       = $("#scrim");
-const closeModal  = $("#closeModal");
-const doLogin     = $("#doLogin");
-const doRegister  = $("#doRegister");
-const email       = $("#email");
-const pass        = $("#pass");
-const regName     = $("#regName");
-const toggleEye   = $("#toggleEye");
-const loginErr    = $("#loginErr");
-const loginInfo   = $("#loginInfo");
+// Modal auth
+const scrim = $("#scrim");
+const closeModal = $("#closeModal");
+const doLogin = $("#doLogin");
+const doRegister = $("#doRegister");
+const email = $("#email");
+const pass = $("#pass");
+const regName = $("#regName");
+const toggleEye = $("#toggleEye");
+const loginErr = $("#loginErr");
+const loginInfo = $("#loginInfo");
 
+// Storage
 const TOKEN_KEY = "coachbot.token";
-
 function token(){ return localStorage.getItem(TOKEN_KEY) || null; }
 function setToken(t){ if(t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); }
 function authHeaders(h={}){ const t = token(); if(t) h.Authorization = "Bearer "+t; return h; }
 
+// Generic API
 async function api(path, opt={}){
   const headers = authHeaders({ "Content-Type":"application/json", ...(opt.headers||{}) });
-  return fetch(path, { ...opt, headers });
+  const r = await fetch(path, { ...opt, headers });
+  return r;
 }
 
-// ---------- UI helpers ----------
-function bubble(role, text){
+// ---------- Bubbles helpers ----------
+function addBubble(role, text=""){
   const div = document.createElement("div");
   div.className = "bubble " + (role === "user" ? "me" : "ai");
   const dot = `<span class="dot ${role==='user'?'me':'ai'}"></span>`;
-  div.innerHTML = dot + (text || "");
+  div.innerHTML = `${dot}<span class="btxt">${text}</span>`;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
+  return div.querySelector(".btxt");
 }
 
-/* Émet plusieurs bulles à partir d’un texte :
-   - coupe aux fins de phrase
-   - limite la taille de bulle pour l’effet “conversation”
-*/
-function emitBubbles(role, text) {
-  if (!text) return;
-  // On nettoie et on coupe par phrases
-  const parts = text
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(/(?<=[.!?…])\s+/g);
-
-  const MAX_LEN = 180; // longueur max par bulle
-  for (let p of parts) {
-    if (!p) continue;
-    // Si une phrase est trop longue, on “hard-wrap” en plusieurs bulles
-    while (p.length > MAX_LEN) {
-      const cut = p.lastIndexOf(" ", MAX_LEN) > 60 ? p.lastIndexOf(" ", MAX_LEN) : MAX_LEN;
-      bubble(role, p.slice(0, cut).trim());
-      p = p.slice(cut).trim();
-    }
-    if (p) bubble(role, p);
+// Découpe un long texte en segments “naturels”
+function splitForBubbles(full){
+  const clean = (full || "").replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  // D’abord on coupe par doubles sauts de ligne ; sinon on coupe sur points d’arrêt.
+  let blocks = clean.split(/\n{2,}/).filter(Boolean);
+  if (blocks.length === 1) {
+    blocks = clean.split(/(?<=[.!?…])\s+(?=[A-ZÀÂÄÇÉÈÊËÎÏÔÖÙÛÜŸ])/g).filter(Boolean);
   }
+  // Re-fusionne si certains blocs sont trop courts
+  const merged = [];
+  let cur = "";
+  for (const b of blocks) {
+    if ((cur + " " + b).trim().length < 220) {
+      cur = (cur ? cur + " " : "") + b;
+    } else {
+      if (cur) merged.push(cur);
+      cur = b;
+    }
+  }
+  if (cur) merged.push(cur);
+  return merged;
 }
 
 function setLogged(user){
   if(user){
     who.textContent = `Connecté : ${user.name || user.email}`;
+    who.classList.add("is-logged");
     logoutBtn.style.display = "";
     loginBtn.style.display = "none";
     adminBtn.style.display = (user.role === "admin") ? "" : "none";
   }else{
     who.textContent = "Non connecté";
+    who.classList.remove("is-logged");
     logoutBtn.style.display = "none";
     loginBtn.style.display = "";
     adminBtn.style.display = "none";
@@ -91,14 +95,13 @@ function showLogin(open=true){
   if(open){ loginErr.textContent=""; loginInfo.style.display="none"; }
 }
 
-// ---------- Plan J1→J15 ----------
+// ---------- Build day select + plan ----------
 for(let d=1; d<=15; d++){
   const o = document.createElement("option");
   o.value = d; o.textContent = "Jour " + d;
   daySel.appendChild(o);
 }
 daySel.value = "1";
-
 const plans = {
   1:"Clarification des intentions : défi prioritaire, pourquoi c’est important, et ce que ‘réussir’ signifie.",
   2:"Diagnostic : 3 leviers + 3 obstacles.",
@@ -137,20 +140,15 @@ msg.addEventListener('keydown', (e)=>{
 
 // ---------- Events UI ----------
 showPlanBtn.addEventListener("click", renderPlan);
-daySel.addEventListener("change", loadJournal);
-
 loginBtn.addEventListener("click", ()=>showLogin(true));
 closeModal.addEventListener("click", ()=>showLogin(false));
 logoutBtn.addEventListener("click", ()=>{
-  setToken(null);
-  setLogged(null);
-  chat.innerHTML="";
-  bubble("ai","Déconnecté.");
+  setToken(null); 
+  setLogged(null); 
+  chat.innerHTML=""; 
+  addBubble("ai","Déconnecté.");
 });
-
-toggleEye.addEventListener("click", ()=>{
-  pass.type = pass.type === "password" ? "text":"password";
-});
+toggleEye.addEventListener("click", ()=>{ pass.type = pass.type === "password" ? "text":"password"; });
 
 // ---------- Auth ----------
 doLogin.addEventListener("click", async ()=>{
@@ -163,8 +161,8 @@ doLogin.addEventListener("click", async ()=>{
     if(!r.ok){ loginErr.textContent="Identifiants invalides."; return; }
     const d = await r.json();
     setToken(d.token); setLogged(d.user);
-    loginInfo.style.display="";
-    setTimeout(()=> showLogin(false), 600);
+    loginInfo.style.display="";          // petit OK visuel
+    setTimeout(()=> showLogin(false), 500);
     await loadJournal();
   }catch{ loginErr.textContent="Erreur réseau."; }
 });
@@ -184,7 +182,7 @@ doRegister.addEventListener("click", async ()=>{
     const d = await r.json();
     setToken(d.token); setLogged(d.user);
     loginInfo.style.display="";
-    setTimeout(()=> showLogin(false), 600);
+    setTimeout(()=> showLogin(false), 500);
     await loadJournal();
   }catch{ loginErr.textContent="Erreur réseau."; }
 });
@@ -203,29 +201,29 @@ doRegister.addEventListener("click", async ()=>{
   }catch{ setLogged(null); }
 })();
 
-// ---------- Charger le journal du jour ----------
+// ---------- Journal ----------
 async function loadJournal(){
   chat.innerHTML = "";
-  emitBubbles("ai", "Conversation chargée (jour " + daySel.value + ").");
+  addBubble("ai", "Conversation chargée (jour " + daySel.value + ").");
   try{
     const r = await api("/api/journal?day="+daySel.value);
-    if(!r.ok){ emitBubbles("ai","Erreur : impossible de charger le journal."); return; }
+    if(!r.ok){ addBubble("ai","Erreur : impossible de charger le journal."); return; }
     const list = await r.json();
     for (const m of list){
-      emitBubbles(m.role === "user" ? "user" : "ai", m.message);
+      addBubble(m.role === "user" ? "user" : "ai", m.message);
     }
-  }catch{ emitBubbles("ai","Erreur de chargement."); }
+  }catch{ addBubble("ai","Erreur de chargement."); }
 }
+daySel.addEventListener("change", loadJournal);
 
-// ---------- Envoi message (bouton) ----------
+// ---------- Envoi message (bouton + streaming multi-bulles) ----------
 sendBtn.addEventListener("click", sendMessage);
 
-// ---------- Streaming + bulles courtes ----------
 async function sendMessage(){
   const text = (msg.value||"").trim();
   if(!text) return;
 
-  emitBubbles("user", text);
+  addBubble("user", text);
   msg.value = "";
   autoResize();
 
@@ -234,26 +232,37 @@ async function sendMessage(){
       method:"POST",
       body: JSON.stringify({ message:text, day:Number(daySel.value), provider: providerSel?.value || "anthropic" })
     });
-    if(!r.ok){ emitBubbles("ai","Erreur côté IA."); return; }
+    if(!r.ok){ addBubble("ai","Erreur côté IA."); return; }
 
-    const reader  = r.body.getReader();
+    // Prépare première bulle IA à alimenter en streaming
+    let curTarget = addBubble("ai","");
+
+    const reader = r.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = "";
+    let buffer = "";        // on accumule le texte total
+    let lastFlush = "";     // stocke le segment déjà flushé dans la bulle en cours
 
-    const flush = (force=false) => {
-      // coupe par fins de phrase
-      const parts = buffer.split(/(?<=[.!?…])\s+/g);
-      // garde la dernière partie (potentiellement incomplète) en tampon
-      buffer = parts.pop() || "";
-      // émet le reste
-      for (const p of parts) {
-        const s = (p||"").trim();
-        if (s) emitBubbles("ai", s);
-      }
-      // si force=true, on vide tout
-      if (force && buffer.trim()) {
-        emitBubbles("ai", buffer.trim());
-        buffer = "";
+    const flushIfNeeded = ()=>{
+      // découpe en blocs ; si on détecte qu’un nouveau bloc est apparu,
+      // on “ferme” la bulle courante et on en crée une nouvelle.
+      const parts = splitForBubbles(buffer);
+      const already = splitForBubbles(lastFlush);
+      if (parts.length > already.length) {
+        const nextPiece = parts[already.length]; // nouveau bloc
+        if (nextPiece !== undefined) {
+          // si la bulle courante contient quelque chose, on ouvre une nouvelle
+          if (curTarget.textContent.trim().length > 0) {
+            curTarget = addBubble("ai","");
+          }
+          curTarget.textContent = nextPiece;
+          lastFlush = parts.slice(0, already.length + 1).join("\n\n");
+          chat.scrollTop = chat.scrollHeight;
+        }
+      } else {
+        // même bloc : on remplit juste la bulle courante
+        const current = parts[parts.length-1] || buffer;
+        curTarget.textContent = current;
+        lastFlush = parts.slice(0, parts.length-1).join("\n\n");
       }
     };
 
@@ -261,7 +270,6 @@ async function sendMessage(){
       const { done, value } = await reader.read();
       if(done) break;
       const chunk = decoder.decode(value, { stream:true });
-
       for(const line of chunk.split("\n")){
         if(!line.startsWith("data:")) continue;
         const payload = line.slice(5).trim();
@@ -270,17 +278,15 @@ async function sendMessage(){
           const evt = JSON.parse(payload);
           if(evt.text) {
             buffer += evt.text;
-            // petit flush sur ponctuation ou quand le buffer devient long
-            if (/[.!?…]\s$/.test(buffer) || buffer.length > 220) flush(false);
+            flushIfNeeded();
           }
-          if(evt.error){ emitBubbles("ai", "[Erreur] " + evt.error); }
-        }catch{ /* ignore */ }
+          if(evt.error){
+            curTarget.textContent = "[Erreur] " + evt.error;
+          }
+        }catch{/* ignore */}
       }
     }
-    // fin de flux → on vide ce qui reste
-    flush(true);
-
   }catch{
-    emitBubbles("ai","Erreur réseau.");
+    addBubble("ai","Erreur réseau.");
   }
 }
