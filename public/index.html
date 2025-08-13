@@ -1,77 +1,67 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Coach 15 Jours</title>
-  <link rel="stylesheet" href="style.css" />
-  <style>
-    .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:10px;flex:0 0 10px}
-    .dot.green{background:#22c55e}
-    .dot.red{background:#f43f5e}
-  </style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>CoachBot — 15 jours</title>
+  <link rel="stylesheet" href="/style.css"/>
 </head>
 <body>
-  <main class="page">
+  <div class="app">
     <header class="topbar">
-      <h1>Coach 15 Jours</h1>
-      <p class="subtitle">Sélectionne un jour et affiche le plan. Écris ensuite ton message au coach.</p>
+      <div class="brand">CoachBot</div>
+      <div class="auth">
+        <div id="meBox" class="hidden">
+          <span id="meName"></span>
+          <button id="logoutBtn" class="btn secondary">Se déconnecter</button>
+        </div>
+        <button id="openAuth" class="btn">Se connecter</button>
+      </div>
     </header>
 
-    <section class="card controls">
+    <main class="layout">
+      <aside class="sidebar">
+        <h3>Programme 15 jours</h3>
+        <select id="daySelect"></select>
+        <p class="muted" id="planText"></p>
+        <div class="metaBox">
+          <label>Ton prénom</label>
+          <input id="nameInput" placeholder="Ex: Karim"/>
+          <label>DISC (auto-déduit si vide)</label>
+          <input id="discInput" placeholder="D / I / S / C"/>
+          <button id="saveMeta" class="btn small">Sauvegarder</button>
+        </div>
+      </aside>
+
+      <section class="chat">
+        <div id="history" class="history"></div>
+        <form id="composer" class="composer">
+          <input id="msg" placeholder="Sélectionne un jour, puis écris ton message au coach…"/>
+          <button class="btn">Envoyer</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modale auth -->
+  <dialog id="authDialog">
+    <form method="dialog" class="authForm" id="authForm">
+      <h3>Connexion / Inscription</h3>
+      <label>Email</label>
+      <input id="authEmail" type="email" required placeholder="toi@exemple.com"/>
+      <label>Mot de passe</label>
+      <input id="authPass" type="password" required placeholder="******"/>
+      <label>Prénom (si inscription)</label>
+      <input id="authName" placeholder="Ex: Karim"/>
       <div class="row">
-        <div>
-          <label for="daySelect">Jour :</label>
-          <div class="dayline">
-            <select id="daySelect" class="select"></select>
-            <button id="btnShow" class="btn primary">Afficher</button>
-
-            <!-- Fournisseur (Claude par défaut) -->
-            <select id="provider" class="select" title="Fournisseur IA">
-              <option value="anthropic" selected>Claude</option>
-            </select>
-          </div>
-        </div>
+        <button id="loginBtn" class="btn">Connexion</button>
+        <button id="registerBtn" class="btn secondary" type="button">Inscription</button>
+        <button class="btn ghost" value="cancel">Fermer</button>
       </div>
+      <p id="authError" class="error"></p>
+    </form>
+  </dialog>
 
-      <div class="row gap">
-        <div class="navbtns">
-          <button id="btnPrev" class="btn icon" title="Jour précédent">◀</button>
-          <button id="btnNext" class="btn icon" title="Jour suivant">▶</button>
-        </div>
-        <button id="btnTool" class="btn">Outil utile</button>
-      </div>
-    </section>
-
-    <section class="card hint">
-      <div class="chip">Conseil</div>
-      <ul class="hintlist">
-        <li>« Exporter » télécharge ton journal du jour en .txt</li>
-        <li>Les discussions sont séparées par jour</li>
-      </ul>
-      <div class="row gap">
-        <button id="btnExport" class="btn">Exporter</button>
-        <button id="btnClear" class="btn">Effacer écran</button>
-      </div>
-    </section>
-
-    <section class="card plan">
-      <div class="chip">Plan du jour</div>
-      <p id="dayPlan" class="plantext"></p>
-    </section>
-
-    <section id="chat" class="card chat"></section>
-
-    <section class="composer">
-      <textarea id="input" rows="4" placeholder="Écris ton message… (Ex: « je m’appelle Samir » pour enregistrer ton prénom)"></textarea>
-      <div class="row gap end">
-        <button id="btnSend" class="btn primary">Envoyer au coach</button>
-        <button id="btnSave" class="btn">Sauvegarder la réponse</button>
-      </div>
-      <p class="footnote">Streaming activé avec Claude. Données enregistrées par jour côté serveur.</p>
-    </section>
-  </main>
-
-  <script src="script.js"></script>
+  <script src="/script.js"></script>
 </body>
 </html>
