@@ -7,49 +7,54 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 dotenv.config();
 
-// ----- App -----
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// ----- Paths -----
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ----- Journal (JSON sur disque) -----
-const FILE_PATH = process.env.DB_PATH || "/data/journal.json";
-function loadJournal() {
-  try { return JSON.parse(fs.readFileSync(FILE_PATH, "utf-8")); }
-  catch { return []; }
-}
-function saveJournal(entries) {
+// ---------- Prompt (fichier séparé) ----------
+const PROMPT_PATH = process.env.PROMPT_PATH || path.join(__dirname, "prompt.txt");
+const DEFAULT_PROMPT = `Tu es CoachBot. Réponds en français, de manière brève et orientée actions.`;
+function getSystemPrompt() {
   try {
-    fs.mkdirSync(path.dirname(FILE_PATH), { recursive: true });
-    fs.writeFileSync(FILE_PATH, JSON.stringify(entries, null, 2));
-  } catch (e) {
-    console.error("Save journal error:", e);
+    return fs.readFileSync(PROMPT_PATH, "utf-8");
+  } catch {
+    return DEFAULT_PROMPT;
   }
 }
 
-// ----- UI statique -----
+// ---------- Journal PAR JOUR ----------
+const FILE_PATH = process.env.DB_PATH || "/data/journal.json";
+// Structure: { "1":[{role:"user|ai",message,date}], "2":[...], ... }
+function loadDB() {
+  try { return JSON.parse(fs.readFileSync(FILE_PATH, "utf-8")); }
+  catch { return {}; }
+}
+function saveDB(db) {
+  fs.mkdirSync(path.dirname(FILE_PATH), { recursive: true });
+  fs.writeFileSync(FILE_PATH, JSON.stringify(db, null, 2));
+}
+function getEntries(day) {
+  const db = loadDB();
+  return db[String(day)] || [];
+}
+function addEntry(day, entry) {
+  const db = loadDB();
+  const key = String(day);
+  if (!db[key]) db[key] = [];
+  db[key].push(entry);
+  saveDB(db);
+}
+
+// ---------- UI statique ----------
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// ----- Journal API -----
-app.post("/api/journal/save", (req, res) => {
-  const { message } = req.body || {};
-  const entries = loadJournal();
-  entries.push({ message, date: new Date().toISOString() });
-  saveJournal(entries);
-  res.json({ success: true });
-});
-app.get("/api/journal", (_req, res) => {
-  res.json(loadJournal());
-});
-
-// ----- Contexte programme -----
+// ---------- Plans ----------
 const plans = {
   1:"Jour 1 — Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que ‘réussir’ signifie concrètement.",
   2:"Jour 2 — Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",
@@ -68,21 +73,25 @@ const plans = {
   15:"Jour 15 — Bilan final + plan 30 jours."
 };
 
-function systemPrompt() {
-  return `Tu es CoachBot, un coach bienveillant et concret.
-- Style: clair, respectueux, orienté actions (micro‑étapes, responsabilités, KISS).
-- Si l’utilisateur est vague, pose 1 à 2 questions ciblées, puis propose une micro‑action de 10 minutes.
-- Réponds en français.`;
-}
+// ---------- Journal API ----------
+app.get("/api/journal", (req, res) => {
+  const day = Number(req.query.day || 1);
+  res.json(getEntries(day));
+});
+app.post("/api/journal/save", (req, res) => {
+  const { day = 1, message = "", role = "user" } = req.body || {};
+  addEntry(day, { role, message, date: new Date().toISOString() });
+  res.json({ success: true });
+});
 
-// ----- /api/chat (non-stream) -----
+// ---------- Chat API (non stream) ----------
 app.post("/api/chat", async (req, res) => {
   try {
     const { message, day = 1, provider = "anthropic" } = req.body ?? {};
     const plan = plans[Number(day)] || "Plan non spécifié.";
+    const system = getSystemPrompt();
     const userPrompt = `Plan du jour (${day}) : ${plan}\n\nMessage de l'utilisateur : ${message}`;
 
-    // Claude (Anthropic)
     if (provider === "anthropic" || provider === "claude") {
       if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: "ANTHROPIC_API_KEY manquante" });
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -95,18 +104,17 @@ app.post("/api/chat", async (req, res) => {
         body: JSON.stringify({
           model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022",
           max_tokens: 800, temperature: 0.4,
-          system: systemPrompt(),
+          system,
           messages: [{ role: "user", content: userPrompt }]
         })
       });
       const data = await resp.json();
       if (!resp.ok) return res.status(500).json({ error: "Claude error", details: data });
       const reply = data?.content?.[0]?.text || "";
-      const entries = loadJournal(); entries.push({ message: `[AI] ${reply}`, date: new Date().toISOString() }); saveJournal(entries);
+      addEntry(day, { role: "ai", message: reply, date: new Date().toISOString() });
       return res.json({ reply });
     }
 
-    // OpenAI
     if (provider === "openai") {
       if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: "OPENAI_API_KEY manquante" });
       const resp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -115,29 +123,28 @@ app.post("/api/chat", async (req, res) => {
         body: JSON.stringify({
           model: process.env.OPENAI_MODEL || "gpt-4o-mini",
           temperature: 0.4,
-          messages: [{ role: "system", content: systemPrompt() }, { role: "user", content: userPrompt }]
+          messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }]
         })
       });
       const data = await resp.json();
       if (!resp.ok) return res.status(500).json({ error: "OpenAI error", details: data });
       const reply = data.choices?.[0]?.message?.content?.trim() || "";
-      const entries = loadJournal(); entries.push({ message: `[AI] ${reply}`, date: new Date().toISOString() }); saveJournal(entries);
+      addEntry(day, { role: "ai", message: reply, date: new Date().toISOString() });
       return res.json({ reply });
     }
 
-    // Gemini (bloc unique)
     if (provider === "gemini" || provider === "google") {
       if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: "GEMINI_API_KEY manquante" });
       const model = process.env.GEMINI_MODEL || "gemini-1.5-pro";
       const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: systemPrompt() + "\n\n" + userPrompt }]}] })
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: system + "\n\n" + userPrompt }]}] })
       });
       const data = await resp.json();
       if (!resp.ok) return res.status(500).json({ error: "Gemini error", details: data });
       const reply = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text).join("") || "";
-      const entries = loadJournal(); entries.push({ message: `[AI] ${reply}`, date: new Date().toISOString() }); saveJournal(entries);
+      addEntry(day, { role: "ai", message: reply, date: new Date().toISOString() });
       return res.json({ reply });
     }
 
@@ -148,13 +155,13 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// ----- /api/chat/stream (SSE) -----
+// ---------- Chat API (STREAM SSE) ----------
 app.post("/api/chat/stream", async (req, res) => {
   const { message, day = 1, provider = "anthropic" } = req.body ?? {};
   const plan = plans[Number(day)] || "Plan non spécifié.";
+  const system = getSystemPrompt();
   const userPrompt = `Plan du jour (${day}) : ${plan}\n\nMessage de l'utilisateur : ${message}`;
 
-  // Préparer SSE
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -164,7 +171,6 @@ app.post("/api/chat/stream", async (req, res) => {
   const end  = () => { res.write("data: [DONE]\n\n"); res.end(); };
 
   try {
-    // Claude (Anthropic) streaming
     if (provider === "anthropic" || provider === "claude") {
       if (!process.env.ANTHROPIC_API_KEY) { send({ error: "ANTHROPIC_API_KEY manquante" }); return end(); }
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -177,7 +183,7 @@ app.post("/api/chat/stream", async (req, res) => {
         body: JSON.stringify({
           model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022",
           max_tokens: 800, temperature: 0.4, stream: true,
-          system: systemPrompt(),
+          system,
           messages: [{ role: "user", content: userPrompt }]
         })
       });
@@ -201,18 +207,13 @@ app.post("/api/chat/stream", async (req, res) => {
               const delta = evt.delta.text || "";
               if (delta) { full += delta; send({ text: delta }); }
             }
-          } catch { /* ignore */ }
+          } catch {}
         }
       }
-      if (full) {
-        const entries = loadJournal();
-        entries.push({ message: `[AI] ${full}`, date: new Date().toISOString() });
-        saveJournal(entries);
-      }
+      if (full) addEntry(day, { role: "ai", message: full, date: new Date().toISOString() });
       return end();
     }
 
-    // OpenAI streaming
     if (provider === "openai") {
       if (!process.env.OPENAI_API_KEY) { send({ error: "OPENAI_API_KEY manquante" }); return end(); }
       const resp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -221,7 +222,7 @@ app.post("/api/chat/stream", async (req, res) => {
         body: JSON.stringify({
           model: process.env.OPENAI_MODEL || "gpt-4o-mini",
           temperature: 0.4, stream: true,
-          messages: [{ role: "system", content: systemPrompt() }, { role: "user", content: userPrompt }]
+          messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }]
         })
       });
       if (!resp.ok || !resp.body) {
@@ -242,35 +243,25 @@ app.post("/api/chat/stream", async (req, res) => {
             const obj = JSON.parse(payload);
             const delta = obj.choices?.[0]?.delta?.content || "";
             if (delta) { full += delta; send({ text: delta }); }
-          } catch { /* ignore */ }
+          } catch {}
         }
       }
-      if (full) {
-        const entries = loadJournal();
-        entries.push({ message: `[AI] ${full}`, date: new Date().toISOString() });
-        saveJournal(entries);
-      }
+      if (full) addEntry(day, { role: "ai", message: full, date: new Date().toISOString() });
       return end();
     }
 
-    // Gemini (pas de stream natif via SSE ici)
     if (provider === "gemini" || provider === "google") {
       if (!process.env.GEMINI_API_KEY) { send({ error: "GEMINI_API_KEY manquante" }); return end(); }
       const model = process.env.GEMINI_MODEL || "gemini-1.5-pro";
       const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: systemPrompt() + "\n\n" + userPrompt }]}] })
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: system + "\n\n" + userPrompt }]}] })
       });
       const data = await resp.json();
       const reply = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text).join("") || "";
-      if (reply) {
-        send({ text: reply });
-        const entries = loadJournal(); entries.push({ message: `[AI] ${reply}`, date: new Date().toISOString() }); saveJournal(entries);
-      } else {
-        send({ error: "Gemini empty" });
-      }
-      return end();
+      if (reply) addEntry(day, { role: "ai", message: reply, date: new Date().toISOString() });
+      send({ text: reply || "" }); return end();
     }
 
     send({ error: "Fournisseur inconnu" }); return end();
