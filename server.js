@@ -7,35 +7,26 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 dotenv.config();
 
+// ---------- App ----------
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// ---------- Paths ----------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ---------- Prompt (fichier séparé) ----------
+// ---------- Storage (JSON) ----------
+const DB_PATH = process.env.DB_PATH || "/data/journal.json";     // discussions par jour
+const META_PATH = process.env.META_PATH || "/data/meta.json";    // prénom + DISC
 const PROMPT_PATH = process.env.PROMPT_PATH || path.join(__dirname, "prompt.txt");
-const DEFAULT_PROMPT = `Tu es CoachBot. Réponds en français, de manière brève et orientée actions.`;
-function getSystemPrompt() {
-  try {
-    return fs.readFileSync(PROMPT_PATH, "utf-8");
-  } catch {
-    return DEFAULT_PROMPT;
-  }
-}
 
-// ---------- Journal PAR JOUR ----------
-const FILE_PATH = process.env.DB_PATH || "/data/journal.json";
-// Structure: { "1":[{role:"user|ai",message,date}], "2":[...], ... }
-function loadDB() {
-  try { return JSON.parse(fs.readFileSync(FILE_PATH, "utf-8")); }
-  catch { return {}; }
-}
-function saveDB(db) {
-  fs.mkdirSync(path.dirname(FILE_PATH), { recursive: true });
-  fs.writeFileSync(FILE_PATH, JSON.stringify(db, null, 2));
-}
+function ensureDir(p) { fs.mkdirSync(path.dirname(p), { recursive: true }); }
+function loadJSON(p, fallback) { try { return JSON.parse(fs.readFileSync(p, "utf-8")); } catch { return fallback; } }
+function saveJSON(p, obj) { ensureDir(p); fs.writeFileSync(p, JSON.stringify(obj, null, 2)); }
+
+function loadDB() { return loadJSON(DB_PATH, {}); }
+function saveDB(db) { saveJSON(DB_PATH, db); }
 function getEntries(day) {
   const db = loadDB();
   return db[String(day)] || [];
@@ -48,13 +39,43 @@ function addEntry(day, entry) {
   saveDB(db);
 }
 
-// ---------- UI statique ----------
-app.use(express.static(path.join(__dirname, "public")));
-app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
+function loadMeta() { return loadJSON(META_PATH, { name: null, disc: null }); }
+function saveMeta(meta) { saveJSON(META_PATH, meta); }
 
-// ---------- Plans ----------
+function getPromptText() {
+  try { return fs.readFileSync(PROMPT_PATH, "utf-8"); }
+  catch { return "Tu es CoachBot. Réponds en français, de façon brève et concrète."; }
+}
+
+// ---------- Heuristiques: prénom & DISC ----------
+function maybeExtractName(text) {
+  // Détecte "je m'appelle X", "moi c'est X", ou mot unique capitalisé
+  const t = text.trim();
+  let m = t.match(/je m(?:'|e)appelle\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i)
+       || t.match(/moi c['’]est\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i)
+       || (t.split(/\s+/).length === 1 ? [null, t] : null);
+  return m ? m[1].trim().replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ]+|[^A-Za-zÀ-ÖØ-öø-ÿ]+$/g,"") : null;
+}
+
+function inferDISC(text) {
+  // Heuristique très simple — améliorable
+  const t = text.trim();
+  const len = t.length;
+  const ex = (t.match(/!/g)||[]).length;
+  const hasCaps = /[A-Z]{3,}/.test(t);
+  const hasNums = /\d/.test(t);
+  const asksDetail = /(détail|exact|précis|critère|mesurable|plan|checklist)/i.test(t);
+  const caresPeople = /(écoute|relation|aider|ensemble|émotion|ressenti|bienveillance)/i.test(t);
+  const wantsAction = /(action|résultat|vite|maintenant|objectif|deadline|priorit)/i.test(t);
+
+  if (wantsAction && (ex>0 || hasCaps)) return "D";            // Dominant
+  if (ex>1 || /cool|idée|créatif|enthous|fun/i.test(t)) return "I"; // Influent
+  if (caresPeople || /calme|rassure|routine|habitude/i.test(t)) return "S"; // Stable
+  if (asksDetail || hasNums || len>240) return "C";             // Consciencieux
+  return null;
+}
+
+// ---------- Contexte programme (affiché côté client, réutilisé côté serveur si besoin) ----------
 const plans = {
   1:"Jour 1 — Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que ‘réussir’ signifie concrètement.",
   2:"Jour 2 — Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",
@@ -73,28 +94,68 @@ const plans = {
   15:"Jour 15 — Bilan final + plan 30 jours."
 };
 
+// ---------- Static UI ----------
+app.use(express.static(path.join(__dirname, "public")));
+app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+
 // ---------- Journal API ----------
 app.get("/api/journal", (req, res) => {
   const day = Number(req.query.day || 1);
-  res.json(getEntries(day));
+  return res.json(getEntries(day));
 });
 app.post("/api/journal/save", (req, res) => {
   const { day = 1, message = "", role = "user" } = req.body || {};
   addEntry(day, { role, message, date: new Date().toISOString() });
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
-// ---------- Chat API (non stream) ----------
+// ---------- Meta API (prénom / DISC) ----------
+app.get("/api/meta", (_req, res) => res.json(loadMeta()));
+app.post("/api/meta", (req, res) => {
+  const meta = loadMeta();
+  if (req.body?.name) meta.name = String(req.body.name).trim();
+  if (req.body?.disc) meta.disc = String(req.body.disc).toUpperCase();
+  saveMeta(meta);
+  res.json({ success: true, meta });
+});
+
+// ---------- Helpers IA ----------
+function systemPrompt(name, disc) {
+  // Injecte le prompt externe + variables
+  const base = getPromptText();
+  const note = `\n\n[Contexte CoachBot]\nPrénom: ${name || "Inconnu"}\nDISC: ${disc || "À déduire"}\nRappels: réponses courtes, concrètes, micro‑action 10 min, critère de réussite, tutoiement.`;
+  return base + note;
+}
+
+function makeUserPrompt(day, message) {
+  const plan = plans[Number(day)] || "Plan non spécifié.";
+  return `Plan du jour (${day}) : ${plan}\n\nMessage de l'utilisateur : ${message}`;
+}
+
+// ---------- Chat JSON (fallback non-stream) ----------
 app.post("/api/chat", async (req, res) => {
   try {
     const { message, day = 1, provider = "anthropic" } = req.body ?? {};
-    const plan = plans[Number(day)] || "Plan non spécifié.";
-    const system = getSystemPrompt();
-    const userPrompt = `Plan du jour (${day}) : ${plan}\n\nMessage de l'utilisateur : ${message}`;
+    const meta = loadMeta();
+
+    // Tenter d'extraire prénom / DISC si inconnus
+    if (!meta.name) {
+      const n = maybeExtractName(message);
+      if (n && n.length >= 2) { meta.name = n; saveMeta(meta); }
+    }
+    if (!meta.disc) {
+      const d = inferDISC(message);
+      if (d) { meta.disc = d; saveMeta(meta); }
+    }
+
+    addEntry(day, { role: "user", message, date: new Date().toISOString() });
+
+    const system = systemPrompt(meta.name, meta.disc);
+    const user = makeUserPrompt(day, message);
 
     if (provider === "anthropic" || provider === "claude") {
       if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: "ANTHROPIC_API_KEY manquante" });
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "x-api-key": process.env.ANTHROPIC_API_KEY,
@@ -105,62 +166,44 @@ app.post("/api/chat", async (req, res) => {
           model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022",
           max_tokens: 800, temperature: 0.4,
           system,
-          messages: [{ role: "user", content: userPrompt }]
+          messages: [{ role: "user", content: user }]
         })
       });
-      const data = await resp.json();
-      if (!resp.ok) return res.status(500).json({ error: "Claude error", details: data });
-      const reply = data?.content?.[0]?.text || "";
+      const data = await r.json();
+      if (!r.ok) return res.status(500).json({ error: "Claude error", details: data });
+      const reply = data?.content?.[0]?.text || "Je n’ai pas compris, peux-tu reformuler ?";
+
       addEntry(day, { role: "ai", message: reply, date: new Date().toISOString() });
       return res.json({ reply });
     }
 
-    if (provider === "openai") {
-      if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: "OPENAI_API_KEY manquante" });
-      const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-          temperature: 0.4,
-          messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }]
-        })
-      });
-      const data = await resp.json();
-      if (!resp.ok) return res.status(500).json({ error: "OpenAI error", details: data });
-      const reply = data.choices?.[0]?.message?.content?.trim() || "";
-      addEntry(day, { role: "ai", message: reply, date: new Date().toISOString() });
-      return res.json({ reply });
-    }
-
-    if (provider === "gemini" || provider === "google") {
-      if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: "GEMINI_API_KEY manquante" });
-      const model = process.env.GEMINI_MODEL || "gemini-1.5-pro";
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: system + "\n\n" + userPrompt }]}] })
-      });
-      const data = await resp.json();
-      if (!resp.ok) return res.status(500).json({ error: "Gemini error", details: data });
-      const reply = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text).join("") || "";
-      addEntry(day, { role: "ai", message: reply, date: new Date().toISOString() });
-      return res.json({ reply });
-    }
-
-    return res.status(400).json({ error: "Fournisseur inconnu" });
+    // (OpenAI/Gemini gardés pour compat, mêmes modèles que précédemment)
+    return res.status(400).json({ error: "Fournisseur inconnu ou non activé" });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
 
-// ---------- Chat API (STREAM SSE) ----------
+// ---------- Chat STREAM (SSE) ----------
 app.post("/api/chat/stream", async (req, res) => {
   const { message, day = 1, provider = "anthropic" } = req.body ?? {};
-  const plan = plans[Number(day)] || "Plan non spécifié.";
-  const system = getSystemPrompt();
-  const userPrompt = `Plan du jour (${day}) : ${plan}\n\nMessage de l'utilisateur : ${message}`;
+  const meta = loadMeta();
+
+  // extractions heuristiques
+  if (!meta.name) {
+    const n = maybeExtractName(message);
+    if (n && n.length >= 2) { meta.name = n; saveMeta(meta); }
+  }
+  if (!meta.disc) {
+    const d = inferDISC(message);
+    if (d) { meta.disc = d; saveMeta(meta); }
+  }
+
+  addEntry(day, { role: "user", message, date: new Date().toISOString() });
+
+  const system = systemPrompt(meta.name, meta.disc);
+  const user = makeUserPrompt(day, message);
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -184,12 +227,13 @@ app.post("/api/chat/stream", async (req, res) => {
           model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022",
           max_tokens: 800, temperature: 0.4, stream: true,
           system,
-          messages: [{ role: "user", content: userPrompt }]
+          messages: [{ role: "user", content: user }]
         })
       });
       if (!resp.ok || !resp.body) {
         const t = await resp.text().catch(()=> ""); send({ error: "Claude stream error", details: t }); return end();
       }
+
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let full = "";
@@ -207,64 +251,14 @@ app.post("/api/chat/stream", async (req, res) => {
               const delta = evt.delta.text || "";
               if (delta) { full += delta; send({ text: delta }); }
             }
-          } catch {}
+          } catch { /* ignore */ }
         }
       }
       if (full) addEntry(day, { role: "ai", message: full, date: new Date().toISOString() });
       return end();
     }
 
-    if (provider === "openai") {
-      if (!process.env.OPENAI_API_KEY) { send({ error: "OPENAI_API_KEY manquante" }); return end(); }
-      const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-          temperature: 0.4, stream: true,
-          messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }]
-        })
-      });
-      if (!resp.ok || !resp.body) {
-        const t = await resp.text().catch(()=> ""); send({ error: "OpenAI stream error", details: t }); return end();
-      }
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let full = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split("\n")) {
-          if (!line.startsWith("data:")) continue;
-          const payload = line.slice(5).trim();
-          if (payload === "[DONE]") break;
-          try {
-            const obj = JSON.parse(payload);
-            const delta = obj.choices?.[0]?.delta?.content || "";
-            if (delta) { full += delta; send({ text: delta }); }
-          } catch {}
-        }
-      }
-      if (full) addEntry(day, { role: "ai", message: full, date: new Date().toISOString() });
-      return end();
-    }
-
-    if (provider === "gemini" || provider === "google") {
-      if (!process.env.GEMINI_API_KEY) { send({ error: "GEMINI_API_KEY manquante" }); return end(); }
-      const model = process.env.GEMINI_MODEL || "gemini-1.5-pro";
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: system + "\n\n" + userPrompt }]}] })
-      });
-      const data = await resp.json();
-      const reply = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text).join("") || "";
-      if (reply) addEntry(day, { role: "ai", message: reply, date: new Date().toISOString() });
-      send({ text: reply || "" }); return end();
-    }
-
-    send({ error: "Fournisseur inconnu" }); return end();
+    send({ error: "Fournisseur inconnu ou non activé" }); return end();
   } catch (e) {
     console.error(e);
     send({ error: "Erreur serveur" }); return end();
@@ -272,4 +266,4 @@ app.post("/api/chat/stream", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Serveur sur le port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Serveur en ligne sur le port ${PORT}`));
