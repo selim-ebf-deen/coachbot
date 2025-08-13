@@ -1,4 +1,4 @@
-// --- Plans (doit matcher le serveur) ---
+// Plans (doit matcher le serveur)
 const plans = {
   1:"Jour 1 — Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que ‘réussir’ signifie concrètement.",
   2:"Jour 2 — Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",
@@ -23,23 +23,22 @@ const dayPlan     = document.getElementById('dayPlan');
 const chatBox     = document.getElementById('chat');
 const input       = document.getElementById('input');
 
-// Init selects
+// Init jours
 for (let i=1;i<=15;i++){ const o=document.createElement('option'); o.value=i; o.textContent=`Jour ${i}`; daySelect.appendChild(o); }
-daySelect.value = 1;
+daySelect.value = 1; if (providerSel) providerSel.value = 'anthropic';
 dayPlan.textContent = plans[1];
-if (providerSel) providerSel.value = 'anthropic';
 
 // Helpers
 function addMsg(role, text){
   const wrap = document.createElement('div'); wrap.className = `msg ${role}`;
-  const ava = document.createElement('div'); ava.className='avatar'; ava.textContent = role==='user'?'🙂':'🤖';
-  const bubble = document.createElement('div'); bubble.className='bubble'; bubble.textContent = text;
-  wrap.appendChild(ava); wrap.appendChild(bubble); chatBox.appendChild(wrap);
+  const dot = document.createElement('span'); dot.className = `dot ${role==='user'?'green':'red'}`;
+  const bubble = document.createElement('div'); bubble.className = 'bubble'; bubble.textContent = text;
+  wrap.appendChild(dot); wrap.appendChild(bubble); chatBox.appendChild(wrap);
   chatBox.scrollTop = chatBox.scrollHeight; return bubble;
 }
 async function apiGet(url){ const r=await fetch(url); return r.ok ? r.json() : []; }
 async function apiPost(url, body){
-  const r = await fetch(url,{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const r=await fetch(url,{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
   return r.json().catch(()=> ({}));
 }
 function toast(msg){
@@ -49,39 +48,48 @@ function toast(msg){
   document.body.appendChild(t); setTimeout(()=>t.remove(),2000);
 }
 
-// Charger historique
-async function loadHistory(){
-  const items = await apiGet('/api/journal');
-  chatBox.innerHTML="";
-  addMsg('bot',"Bienvenue ! Sélectionnez un jour, choisissez le fournisseur, puis écrivez.");
+// Charger l'historique pour le jour courant
+async function loadHistoryFor(day){
+  const items = await apiGet(`/api/journal?day=${day}`);
+  chatBox.innerHTML = "";
+  addMsg('ai', "Bienvenue ! Choisis un jour, affiche le plan, puis écris ton message.");
   for (const it of items){
-    if (!it?.message) continue;
-    const role = it.message.startsWith("[AI] ") ? 'bot' : 'user';
-    addMsg(role, it.message.replace(/^\[AI\]\s*/, ""));
+    // compat rétro : si pas de role mais message commence par [AI], on force 'ai'
+    let role = it.role || (String(it.message||"").startsWith("[AI] ") ? 'ai' : 'user');
+    const text = String(it.message||"").replace(/^\[AI\]\s*/, "");
+    addMsg(role === 'ai' ? 'ai' : 'user', text);
   }
 }
-loadHistory();
+loadHistoryFor(Number(daySelect.value));
 
-// UI “Jour”
+// UI jour
 document.getElementById('btnShow').onclick = () => {
-  const d = Number(daySelect.value); dayPlan.textContent = plans[d] || "";
+  const d = Number(daySelect.value);
+  dayPlan.textContent = plans[d] || "";
+  loadHistoryFor(d);
 };
 document.getElementById('btnPrev').onclick = () => {
-  const v=Math.max(1,Number(daySelect.value)-1); daySelect.value=v; dayPlan.textContent=plans[v] || "";
+  const v = Math.max(1, Number(daySelect.value)-1);
+  daySelect.value = v; dayPlan.textContent = plans[v] || "";
+  loadHistoryFor(v);
 };
 document.getElementById('btnNext').onclick = () => {
-  const v=Math.min(15,Number(daySelect.value)+1); daySelect.value=v; dayPlan.textContent=plans[v] || "";
+  const v = Math.min(15, Number(daySelect.value)+1);
+  daySelect.value = v; dayPlan.textContent = plans[v] || "";
+  loadHistoryFor(v);
 };
-document.getElementById('btnTool').onclick = () => toast("Astuce : 1 micro‑action faisable en 10 minutes.");
-document.getElementById('btnClear').onclick = () => { chatBox.innerHTML=""; };
+document.getElementById('btnTool').onclick = () => toast("Astuce : note une micro‑action de 10 minutes.");
+document.getElementById('btnClear').onclick = () => { chatBox.innerHTML = ""; };
 document.getElementById('btnExport').onclick = async () => {
-  const items = await apiGet('/api/journal');
-  const text = items.map(i=>`[${i.date}] ${i.message}`).join('\n') || 'Journal vide.';
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));
-  a.download='journal.txt'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  const day = Number(daySelect.value);
+  const items = await apiGet(`/api/journal?day=${day}`);
+  const text  = items.map(i => `[${i.date}] ${i.role||'user'}: ${i.message}`).join('\n') || 'Journal vide.';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text],{type:'text/plain'})); a.download = `journal_j${day}.txt`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 };
 
-// Streaming SSE helper
+// Streaming helper
 async function streamChat({ message, day, provider }, onDelta, onDone, onError){
   try{
     const resp = await fetch('/api/chat/stream', {
@@ -89,8 +97,7 @@ async function streamChat({ message, day, provider }, onDelta, onDone, onError){
       body: JSON.stringify({ message, day, provider })
     });
     if (!resp.ok || !resp.body) throw new Error('Stream init error');
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
+    const reader = resp.body.getReader(); const decoder = new TextDecoder();
     while(true){
       const {done, value} = await reader.read();
       if (done) break;
@@ -103,7 +110,7 @@ async function streamChat({ message, day, provider }, onDelta, onDone, onError){
           const obj = JSON.parse(payload);
           if (obj.error) { onError?.(obj.error); return; }
           if (obj.text) onDelta?.(obj.text);
-        }catch{/* ignore */}
+        }catch{}
       }
     }
     onDone?.();
@@ -119,11 +126,11 @@ document.getElementById('btnSend').onclick = async () => {
   addMsg('user', txt);
   input.value = "";
 
-  // journaliser côté serveur
-  await apiPost('/api/journal/save', { message: txt });
+  // journaliser côté serveur (par jour)
+  await apiPost('/api/journal/save', { day, message: txt, role: 'user' });
 
-  // bulle IA en streaming
-  const bubble = addMsg('bot', "…");
+  // start stream
+  const bubble = addMsg('ai', "…");
   let acc = "";
 
   await streamChat(
@@ -136,6 +143,7 @@ document.getElementById('btnSend').onclick = async () => {
 
 document.getElementById('btnSave').onclick = async () => {
   const txt = input.value.trim(); if(!txt) return toast("Rien à sauvegarder.");
-  await apiPost('/api/journal/save', { message: txt });
+  const day = Number(daySelect.value);
+  await apiPost('/api/journal/save', { day, message: txt, role: 'user' });
   input.value = ""; toast("Réponse sauvegardée !");
 };
