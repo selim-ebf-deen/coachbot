@@ -3,386 +3,297 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>CoachBot — Programme 15 jours</title>
+<title>CoachBot</title>
 <style>
-:root{
-  --bg:#f8f9fa; --text:#202124; --sub:#5f6368; --card:#fff; --line:#e0e0e0;
-  --accent:#1a73e8; --muted:#eef2f3; --weak:#e8f0fe; --radius:14px;
-  --shadow:0 1px 3px rgba(0,0,0,.06), 0 6px 24px rgba(0,0,0,.06);
-  --maxw:980px; --chatw:760px;
-}
-*{box-sizing:border-box} body{margin:0;font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:var(--bg)}
-.wrap{max-width:var(--maxw);margin:0 auto;padding:24px 16px 64px}
-.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
-.brand{display:flex;gap:10px;align-items:center;font-weight:600}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--accent)}
-.right{display:flex;gap:10px;align-items:center;color:var(--sub)}
-.badge{background:var(--weak);padding:6px 10px;border-radius:999px;border:1px solid var(--line)}
-button, input, select{font:inherit}
-select{appearance:none;border:1px solid var(--line);background:var(--card);padding:10px 14px;border-radius:10px;color:var(--text);box-shadow:var(--shadow)}
-.plan{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);margin-bottom:22px}
-.plan h2{margin:0 0 6px;color:var(--sub);font-size:16px}
-.center{display:flex;flex-direction:column;align-items:center;gap:10px;margin:18px auto 8px}
-.search{width:min(var(--chatw),100%);display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:28px;padding:10px 12px 10px 16px;box-shadow:var(--shadow)}
-.search input{flex:1;border:none;outline:none;background:transparent}
-.primary{padding:10px 16px;border:none;border-radius:22px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
-.primary:active{transform:translateY(1px)}
-.primary[disabled]{opacity:.6;cursor:not-allowed}
-.toolbar{display:flex;gap:10px;align-items:center;justify-content:flex-end;width:min(var(--chatw),100%);margin:0 auto 12px}
-.secondary{background:#5f6368}
-.tertiary{background:#9aa0a6}
-.history{width:min(var(--chatw),100%);margin:6px auto 0;height:56vh;overflow:auto}
-.row{display:flex;margin:6px 0}
-.row.user{justify-content:flex-end}
-.row.bot{justify-content:flex-start}
-.msg{display:inline-flex;align-items:flex-start;gap:10px;max-width:85%;padding:10px 14px;border-radius:16px}
-.msg .bubble{white-space:pre-wrap}
-.msg .led{width:10px;height:10px;border-radius:50%;margin-top:7px;flex:0 0 auto}
-.led-user{background:#1db954}
-.led-bot{background:#d93025}
-.user .msg{background:var(--muted)}
-.bot .msg{background:var(--weak)}
-.hint{color:var(--sub);font-size:14px;text-align:center}
-.footer{display:flex;gap:18px;align-items:center;justify-content:center;margin-top:28px;color:var(--sub);font-size:14px}
-.footer a{color:var(--accent);text-decoration:none}
-.footer a:hover{text-decoration:underline}
-@media(max-width:640px){.top{flex-direction:column;align-items:flex-start;gap:6px}}
-
-/* Modal */
-.modal-back{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
-.modal{width:min(420px,100%);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px}
-.modal h3{margin:0 0 12px}
-.field{display:flex;flex-direction:column;gap:6px;margin:8px 0}
-.input{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
-.actions{display:flex;gap:10px;justify-content:flex-end;margin-top:10px}
-.link{color:var(--accent);background:none;border:none;cursor:pointer;padding:0}
-.err{color:#d93025;font-size:14px;min-height:18px}
-.ok{color:#1a73e8;font-size:14px;min-height:18px}
-.badge.warn{background:#fde04730;border-color:#facc15}
+  :root{
+    --bg:#f8f9fa;--fg:#202124;--muted:#5f6368;--card:#fff;--line:#e0e0e0;--blue:#1a73e8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  .wrap{max-width:820px;margin:0 auto;padding:32px 16px}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .brand{font-size:20px;font-weight:600}
+  .muted{color:var(--muted)}
+  button{border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+  .btn{background:var(--blue);color:#fff}
+  .btn.alt{background:#5f6368}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:16px}
+  .row{display:flex;gap:12px;align-items:center}
+  .col{display:flex;flex-direction:column;gap:8px}
+  .grid{display:grid;gap:12px}
+  .grid.two{grid-template-columns:1fr 1fr}
+  input,select,textarea{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--fg);
+  }
+  textarea{min-height:110px; resize:vertical}
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pill{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#fff}
+  .chat{display:flex;flex-direction:column;gap:10px;max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
+  .msg{display:flex;gap:10px}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .dot.user{background:#10b981}   /* vert user */
+  .dot.ai{background:#ef4444}     /* rouge coach */
+  .bubble{background:#f3f4f6;border:1px solid #e5e7eb;border-radius:12px;padding:10px;max-width:85%}
+  .right{justify-content:flex-end}
+  .center{display:flex;justify-content:center;color:var(--muted);font-size:12px}
+  .hint{font-size:12px;color:var(--muted)}
+  .footer{margin-top:16px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}
+  .hidden{display:none}
+  /* Modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px}
+  .modal>.card{max-width:420px;width:100%}
+  .link{color:var(--blue);cursor:pointer}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <!-- TOP -->
-  <div class="top">
-    <div class="brand"><span class="dot"></span> CoachBot — Programme 15 jours</div>
-    <div class="right">
-      <span id="who" class="badge warn">Non connecté</span>
-      <select id="daySelect" aria-label="Jour">
+  <header>
+    <div class="brand">CoachBot</div>
+    <div class="row">
+      <div id="who" class="muted">Non connecté</div>
+      <button id="openAuth" class="btn alt">Connexion / Inscription</button>
+      <button id="logout" class="btn alt hidden">Déconnexion</button>
+      <button id="adminBtn" class="btn alt" onclick="location.href='/admin'">Admin</button>
+    </div>
+  </header>
+
+  <div class="card" style="margin-bottom:12px">
+    <div class="toolbar">
+      <select id="day">
         <option value="1">Jour 1</option><option value="2">Jour 2</option><option value="3">Jour 3</option>
         <option value="4">Jour 4</option><option value="5">Jour 5</option><option value="6">Jour 6</option>
         <option value="7">Jour 7</option><option value="8">Jour 8</option><option value="9">Jour 9</option>
         <option value="10">Jour 10</option><option value="11">Jour 11</option><option value="12">Jour 12</option>
         <option value="13">Jour 13</option><option value="14">Jour 14</option><option value="15">Jour 15</option>
       </select>
-      <button id="logoutBtn" class="primary tertiary" title="Déconnexion" style="display:none">Quitter</button>
-      <button id="loginBtn"  class="primary" title="Connexion">Connexion</button>
+      <div class="pill muted" id="plan">Sélectionne un jour.</div>
+      <div class="pill">Fournisseur: Claude</div>
     </div>
   </div>
 
-  <!-- PLAN -->
-  <div class="plan">
-    <h2>Plan du jour (<span id="planLabel">J1</span>)</h2>
-    <p id="planText">Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que « réussir » signifie concrètement.</p>
-  </div>
-
-  <!-- INPUT -->
-  <div class="center">
-    <div class="search">
-      <input id="msgInput" type="text" placeholder="Écris ton message… (ex: « je m’appelle Samir »)" />
-      <button id="sendBtn" class="primary">Envoyer</button>
+  <div class="grid" style="grid-template-columns:1fr">
+    <div class="card">
+      <div class="chat" id="chat"></div>
+      <div class="hint" style="margin-top:8px">Point <b class="muted">vert</b> = toi • Point <b class="muted">rouge</b> = coach</div>
+      <div class="row" style="margin-top:10px; gap:8px">
+        <textarea id="msg" placeholder="Écris ton message au coach… (réponses courtes et concrètes)"></textarea>
+        <button id="send" class="btn">Envoyer</button>
+      </div>
+      <div class="footer"><span id="status">Prêt</span><span id="meta">—</span></div>
     </div>
-    <div class="hint">Réponses en temps réel via Claude. Les discussions sont séparées par jour.</div>
   </div>
-
-  <!-- TOOLS -->
-  <div class="toolbar">
-    <button id="exportBtn" class="primary secondary">Exporter</button>
-    <button id="clearBtn"  class="primary tertiary">Effacer écran</button>
-  </div>
-
-  <!-- HISTORY -->
-  <div id="history" class="history"></div>
-
-  <div class="footer">Interface épurée — style Google</div>
 </div>
 
-<!-- MODALE AUTH -->
-<div id="authModal" class="modal-back" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-  <div class="modal">
-    <h3 id="modalTitle">Connexion</h3>
-    <div class="field" id="nameField" style="display:none">
-      <label for="name">Prénom (optionnel)</label>
-      <input id="name" class="input" type="text" placeholder="ex: Samir" />
+<!-- Auth Modal -->
+<div id="authModal" class="modal hidden">
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <strong id="authTitle">Connexion</strong>
+      <span id="closeAuth" class="link">Fermer</span>
     </div>
-    <div class="field">
-      <label for="email">Email</label>
-      <input id="email" class="input" type="email" placeholder="ton@email.com" />
-    </div>
-    <div class="field">
-      <label for="pwd">Mot de passe</label>
-      <input id="pwd" class="input" type="password" placeholder="••••••••" />
-    </div>
-    <div class="err" id="authErr"></div>
-    <div class="ok" id="authOk"></div>
-    <div class="actions">
-      <button id="toggleMode" class="link">Créer un compte</button>
-      <button id="authCancel" class="primary tertiary">Annuler</button>
-      <button id="authSubmit" class="primary">Valider</button>
+    <div class="col" style="margin-top:8px">
+      <input id="email" placeholder="Email" type="email" />
+      <input id="password" placeholder="Mot de passe" type="password" />
+      <input id="name" placeholder="Prénom (inscription)" class="" />
+      <button id="doLogin" class="btn">Connexion</button>
+      <button id="doRegister" class="btn alt">Inscription</button>
+      <div class="hint">Besoin d’un compte ? Clique sur “Inscription”.</div>
+      <div id="authErr" class="hint" style="color:#d93025"></div>
     </div>
   </div>
 </div>
 
 <script>
-// ---------- Plans ----------
-const PLANS={1:"Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que « réussir » signifie concrètement.",
-2:"Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",3:"Vision et critères de réussite : issue idéale + 3 indicateurs.",
-4:"Valeurs et motivations : aligne objectifs et valeurs.",5:"Énergie : estime de soi / amour propre / confiance (3 niveaux).",
-6:"Confiance (suite) : preuves, retours, micro‑victoires.",7:"Bilan intermédiaire KISS (Keep / Improve / Start / Stop).",
-8:"Nouveau départ : cap et prochaines 48h.",9:"Plan d’action simple : 1 chose / jour.",10:"CNV : préparer un message clé.",
-11:"Décisions : Stop / Keep / Start.",12:"Échelle de responsabilité : au‑dessus de la ligne.",
-13:"Co‑développement éclair (pairing).",14:"Leadership (Maxwell).",15:"Bilan final + plan 30 jours."};
+/* --------------- Helpers --------------- */
+const $ = (s)=>document.querySelector(s);
+const chatEl = $("#chat"), msgEl = $("#msg"), dayEl = $("#day");
+const statusEl = $("#status"), planEl = $("#plan"), metaEl = $("#meta");
+const whoEl = $("#who"), openAuth = $("#openAuth"), logoutBtn = $("#logout");
+const authModal = $("#authModal"), authErr = $("#authErr"), nameEl = $("#name");
+const doLogin = $("#doLogin"), doRegister = $("#doRegister");
 
-// ---------- DOM ----------
-const daySelect = document.getElementById('daySelect');
-const planLabel = document.getElementById('planLabel');
-const planText  = document.getElementById('planText');
-const historyEl = document.getElementById('history');
-const msgInput  = document.getElementById('msgInput');
-const sendBtn   = document.getElementById('sendBtn');
-const exportBtn = document.getElementById('exportBtn');
-const clearBtn  = document.getElementById('clearBtn');
-const who       = document.getElementById('who');
-const logoutBtn = document.getElementById('logoutBtn');
-const loginBtn  = document.getElementById('loginBtn');
+const PLANS = {
+  1:"Clarification des intentions : défi prioritaire, pourquoi c’est important, définition du succès.",
+  2:"Diagnostic : 3 leviers + 3 obstacles.",
+  3:"Vision + 3 indicateurs mesurables.",
+  4:"Valeurs et motivations : alignement.",
+  5:"Énergie : estime de soi / amour propre / confiance.",
+  6:"Confiance (suite) : preuves, retours, micro‑victoires.",
+  7:"Bilan KISS (Keep / Improve / Start / Stop).",
+  8:"Nouveau départ : cap + 48h.",
+  9:"Plan simple : 1 action clé / jour.",
+  10:"CNV : préparer un message clé.",
+  11:"Décisions : Stop / Keep / Start.",
+  12:"Échelle de responsabilité.",
+  13:"Co‑développement éclair.",
+  14:"Leadership (Maxwell).",
+  15:"Bilan + plan 30 jours."
+};
 
-const authModal = document.getElementById('authModal');
-const modalTitle= document.getElementById('modalTitle');
-const nameField = document.getElementById('nameField');
-const nameInput = document.getElementById('name');
-const emailInput= document.getElementById('email');
-const pwdInput  = document.getElementById('pwd');
-const authErr   = document.getElementById('authErr');
-const authOk    = document.getElementById('authOk');
-const btnToggle = document.getElementById('toggleMode');
-const btnCancel = document.getElementById('authCancel');
-const btnSubmit = document.getElementById('authSubmit');
-
-let mode = "login"; // ou "register"
-
-// ---------- Token & fetch helper ----------
-function getToken(){ return localStorage.getItem('coachbot.token') || null; }
-function setToken(t){ if(t) localStorage.setItem('coachbot.token', t); else localStorage.removeItem('coachbot.token'); }
-
-async function api(path, options={}){
-  const headers = Object.assign({ 'Content-Type':'application/json' }, options.headers||{});
-  const token = getToken(); if(token) headers['Authorization'] = 'Bearer ' + token;
-  const r = await fetch(path, Object.assign({}, options, { headers }));
+function token(){ return localStorage.getItem("coachbot.token")||null; }
+function setToken(t){ if(t) localStorage.setItem("coachbot.token", t); else localStorage.removeItem("coachbot.token"); }
+async function api(path, opts={}) {
+  const headers = Object.assign({ "Content-Type":"application/json" }, opts.headers||{});
+  const t = token(); if(t) headers.Authorization = "Bearer "+t;
+  const r = await fetch(path, Object.assign({},opts,{headers}));
   return r;
 }
-
-// ---------- UI helpers ----------
-function row(role, text){
-  const el=document.createElement('div');
-  el.className='row '+(role==='user'?'user':'bot');
-  el.innerHTML=`
-    <div class="msg">
-      <span class="led ${role==='user'?'led-user':'led-bot'}"></span>
-      <div class="bubble"></div>
-    </div>`;
-  el.querySelector('.bubble').textContent = text;
-  return el;
+function addMsg(role, text){
+  const row = document.createElement("div");
+  row.className = "msg " + (role==="user" ? "right" : "");
+  row.innerHTML = `
+    <div class="dot ${role==="user"?"user":"ai"}"></div>
+    <div class="bubble">${text.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</div>`;
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
 }
-function scrollToEnd(){ historyEl.scrollTop = historyEl.scrollHeight; }
-function setPlan(day){ planLabel.textContent='J'+day; planText.textContent=PLANS[day]||''; }
-function setConnectedUI(user){
-  who.classList.remove('warn');
-  who.textContent = user?.name ? `Connecté : ${user.name}` : `Connecté : ${user?.email||'inconnu'}`;
-  loginBtn.style.display = 'none';
-  logoutBtn.style.display = '';
-}
-function setDisconnectedUI(){
-  who.classList.add('warn');
-  who.textContent = 'Non connecté';
-  loginBtn.style.display = '';
-  logoutBtn.style.display = 'none';
+function setPlan(){
+  const d = Number(dayEl.value||1);
+  planEl.textContent = PLANS[d] || "—";
 }
 
-// ---------- Auth modal ----------
-function openAuth(m="login"){
-  mode = m;
-  modalTitle.textContent = (mode==='login') ? 'Connexion' : 'Créer un compte';
-  btnToggle.textContent  = (mode==='login') ? 'Créer un compte' : 'J’ai déjà un compte';
-  nameField.style.display= (mode==='register') ? '' : 'none';
-  authErr.textContent = ''; authOk.textContent = '';
-  authModal.style.display = 'flex';
-  setTimeout(()=> emailInput.focus(), 50);
+/* --------------- Auth UI --------------- */
+function updateAuthUI(u){
+  if(u){
+    whoEl.textContent = `Connecté : ${u.name||u.email}`;
+    openAuth.classList.add("hidden");
+    logoutBtn.classList.remove("hidden");
+  } else {
+    whoEl.textContent = "Non connecté";
+    openAuth.classList.remove("hidden");
+    logoutBtn.classList.add("hidden");
+  }
 }
-function closeAuth(){
-  authModal.style.display = 'none';
-}
-btnToggle.addEventListener('click', ()=>{
-  openAuth(mode==='login'?'register':'login');
-});
-btnCancel.addEventListener('click', closeAuth);
 
-btnSubmit.addEventListener('click', async ()=>{
-  authErr.textContent=''; authOk.textContent='';
-  const email = emailInput.value.trim();
-  const pwd   = pwdInput.value.trim();
-  const name  = nameInput.value.trim();
-  if(!email || !pwd){ authErr.textContent='Email et mot de passe requis.'; return; }
+function showAuth(){ authModal.classList.remove("hidden"); }
+function hideAuth(){ authModal.classList.add("hidden"); authErr.textContent=""; }
+
+openAuth.onclick = showAuth;
+$("#closeAuth").onclick = hideAuth;
+logoutBtn.onclick = ()=>{ setToken(null); updateAuthUI(null); chatEl.innerHTML=""; statusEl.textContent="Déconnecté"; };
+
+/* --------------- Auth calls --------------- */
+doLogin.onclick = async ()=>{
+  authErr.textContent=""; statusEl.textContent="Connexion…";
+  const email=$("#email").value.trim(), password=$("#password").value.trim();
+  if(!email||!password){ authErr.textContent="Email et mot de passe requis."; return; }
   try{
-    if(mode==='register'){
-      const r = await api('/api/auth/register', { method:'POST', body:JSON.stringify({email,password:pwd,name}) });
-      const data = await r.json();
-      if(!r.ok){ authErr.textContent = data?.error || 'Erreur inscription.'; return; }
-      setToken(data.token);
-      authOk.textContent='Compte créé. Connexion réussie.'; 
-    }else{
-      const r = await api('/api/auth/login', { method:'POST', body:JSON.stringify({email,password:pwd}) });
-      const data = await r.json();
-      if(!r.ok){ authErr.textContent = data?.error || 'Erreur connexion.'; return; }
-      setToken(data.token);
-      authOk.textContent='Connexion réussie.';
+    const r = await api("/api/auth/login",{ method:"POST", body:JSON.stringify({ email, password }) });
+    const d = await r.json();
+    if(!r.ok){ authErr.textContent=d.error||"Erreur connexion"; return; }
+    setToken(d.token); updateAuthUI(d.user); hideAuth(); statusEl.textContent="Connecté";
+    await hydrate();
+  }catch{ authErr.textContent="Erreur réseau"; }
+};
+doRegister.onclick = async ()=>{
+  authErr.textContent=""; statusEl.textContent="Inscription…";
+  const email=$("#email").value.trim(), password=$("#password").value.trim(), name=nameEl.value.trim()||null;
+  if(!email||!password){ authErr.textContent="Email et mot de passe requis."; return; }
+  try{
+    const r = await api("/api/auth/register",{ method:"POST", body:JSON.stringify({ email, password, name }) });
+    const d = await r.json();
+    if(!r.ok){ authErr.textContent=d.error||"Erreur inscription"; return; }
+    setToken(d.token); updateAuthUI(d.user); hideAuth(); statusEl.textContent="Inscrit et connecté";
+    await hydrate();
+  }catch{ authErr.textContent="Erreur réseau"; }
+};
+
+/* --------------- Me + Journal --------------- */
+async function hydrate(){
+  if(!token()){ updateAuthUI(null); return; }
+  try{
+    const me = await api("/api/me");
+    if(!me.ok){ setToken(null); updateAuthUI(null); return; }
+    const { user, meta } = await me.json();
+    updateAuthUI(user);
+    metaEl.textContent = `Prénom: ${meta?.name||"—"} • DISC: ${meta?.disc||"—"}`;
+    await loadJournal();
+  }catch{ /* ignore */ }
+}
+async function loadJournal(){
+  chatEl.innerHTML = "";
+  const d = Number(dayEl.value||1);
+  try{
+    const r = await api(`/api/journal?day=${d}`);
+    if(!r.ok){ addMsg("ai","Connecte-toi pour voir le journal."); return; }
+    const arr = await r.json();
+    if(Array.isArray(arr)){
+      for(const m of arr){
+        addMsg(m.role, m.message);
+      }
     }
-    await hydrateUser(); // met à jour UI + charge journal
-    setTimeout(closeAuth, 400);
-  }catch(e){ authErr.textContent='Erreur réseau.'; }
-});
-
-// ---------- Load history ----------
-async function loadHistory(day){
-  historyEl.innerHTML = '';
-  historyEl.appendChild(row('bot',"Bienvenue ! Choisis un jour, affiche le plan, puis écris ton message. Si on ne se connaît pas, dis‑moi ton prénom (ex. « je m’appelle Salim »)."));
-  try{
-    const r = await api(`/api/journal?day=${day}`);
-    if(r.status===401){ setToken(null); setDisconnectedUI(); openAuth('login'); return; }
-    const items = await r.json();
-    for(const it of items){
-      historyEl.appendChild(row(it.role==='ai'?'bot':it.role, it.message));
-    }
-    scrollToEnd();
-  }catch{ historyEl.appendChild(row('bot','Erreur : impossible de charger le journal.')); }
+  }catch{
+    addMsg("ai","Erreur de chargement du journal.");
+  }
 }
 
-// ---------- Stream reply (Claude) ----------
-async function streamClaude(message, day){
-  // sécurisé : si pas de token → modale
-  if(!getToken()){ openAuth('login'); return; }
+/* --------------- Send / Stream --------------- */
+$("#send").onclick = async ()=>{
+  const t = msgEl.value.trim();
+  if(!t) return;
+  if(!token()){ showAuth(); return; }
+  const d = Number(dayEl.value||1);
+  addMsg("user", t);
+  msgEl.value="";
+  statusEl.textContent="Réponse en cours…";
 
-  // afficher le message user immédiatement
-  historyEl.appendChild(row('user', message)); scrollToEnd();
-
-  // préparer la bulle du coach
-  const botRow = row('bot', ''); const bubble = botRow.querySelector('.bubble');
-  historyEl.appendChild(botRow); scrollToEnd();
-
-  // désactiver le bouton le temps du stream
-  sendBtn.disabled = true;
-
+  // Streaming SSE (Claude)
   try{
-    const token = getToken();
-    const resp = await fetch('/api/chat/stream', {
-      method:'POST',
+    const r = await fetch("/api/chat/stream",{
+      method:"POST",
       headers:{
-        'Content-Type':'application/json',
-        'Authorization': token ? ('Bearer ' + token) : ''
+        "Content-Type":"application/json",
+        "Authorization": "Bearer "+token()
       },
-      body: JSON.stringify({ message, day, provider:'anthropic' })
+      body: JSON.stringify({ message:t, day:d, provider:"anthropic" })
     });
-    if(!resp.ok || !resp.body){
-      bubble.textContent = "Erreur côté IA (stream indisponible).";
-      return;
-    }
-    const reader = resp.body.getReader();
+    if(!r.ok){ addMsg("ai","Erreur serveur (chat)."); statusEl.textContent="Erreur serveur"; return; }
+    const reader = r.body.getReader();
     const decoder = new TextDecoder();
+    let buffer="", acc="";
+    let currentBubble = null;
+
+    function appendDelta(delta){
+      if(!currentBubble){
+        const row = document.createElement("div");
+        row.className = "msg";
+        row.innerHTML = `<div class="dot ai"></div><div class="bubble"></div>`;
+        chatEl.appendChild(row);
+        currentBubble = row.querySelector(".bubble");
+      }
+      acc += delta;
+      currentBubble.textContent = acc;
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
     while(true){
       const {done, value} = await reader.read();
       if(done) break;
-      const chunk = decoder.decode(value, {stream:true});
-      for(const line of chunk.split('\n')){
-        if(!line.startsWith('data:')) continue;
+      buffer += decoder.decode(value,{stream:true});
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for(const line of lines){
+        if(!line.startsWith("data:")) continue;
         const payload = line.slice(5).trim();
-        if(payload === '[DONE]') continue;
+        if(payload==="[DONE]") continue;
         try{
-          const evt = JSON.parse(payload);
-          if(evt.text){ bubble.textContent += evt.text; scrollToEnd(); }
-          if(evt.error){ bubble.textContent = 'Erreur : ' + evt.error; }
+          const obj = JSON.parse(payload);
+          if(obj.text){ appendDelta(obj.text); }
+          if(obj.error){ appendDelta("\n[Erreur] "+obj.error); }
         }catch{}
       }
     }
-  }catch{ bubble.textContent = 'Erreur réseau.'; }
-  finally{ sendBtn.disabled = false; }
-}
+    statusEl.textContent="Prêt";
+  }catch{
+    addMsg("ai","Erreur réseau.");
+    statusEl.textContent="Erreur réseau";
+  }
+};
 
-// ---------- Export ----------
-async function exportTxt(){
-  if(!getToken()){ openAuth('login'); return; }
-  try{
-    const r = await api(`/api/journal?day=${Number(daySelect.value)}`);
-    if(!r.ok){ alert('Export impossible.'); return; }
-    const data = await r.json();
-    const lines = data.map(m => `[${m.role}] ${m.message}`).join('\n\n');
-    const blob = new Blob([lines], {type:'text/plain;charset=utf-8'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `journal_J${daySelect.value}.txt`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }catch{ alert('Export impossible.'); }
-}
-
-// ---------- Clear (écran seulement) ----------
-function clearScreen(){ historyEl.innerHTML=''; }
-
-// ---------- Events ----------
-sendBtn.addEventListener('click', ()=>{
-  const txt = msgInput.value.trim();
-  if(!txt) return;
-  if(!getToken()){ openAuth('login'); return; }
-  streamClaude(txt, Number(daySelect.value));
-  msgInput.value=''; msgInput.focus();
-});
-msgInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); sendBtn.click(); }});
-daySelect.addEventListener('change', ()=>{
-  const d = Number(daySelect.value);
-  localStorage.setItem('coachbot.day', String(d));
-  setPlan(d); loadHistory(d);
-});
-exportBtn.addEventListener('click', exportTxt);
-clearBtn.addEventListener('click', clearScreen);
-
-loginBtn.addEventListener('click', ()=> openAuth('login'));
-logoutBtn.addEventListener('click', ()=>{
-  setToken(null); setDisconnectedUI(); openAuth('login');
-});
-
-// ---------- Hydrate user on load ----------
-async function hydrateUser(){
-  const t = getToken();
-  if(!t){ setDisconnectedUI(); return false; }
-  try{
-    const r = await api('/api/me');
-    if(!r.ok){ setToken(null); setDisconnectedUI(); return false; }
-    const data = await r.json();
-    setConnectedUI(data.user);
-    return true;
-  }catch{ setDisconnectedUI(); return false; }
-}
-
-// ---------- Init ----------
-(function init(){
-  const saved = Number(localStorage.getItem('coachbot.day')||'1');
-  if(saved>=1 && saved<=15){ daySelect.value = String(saved); }
-  const d = Number(daySelect.value);
-  setPlan(d);
-  hydrateUser().then((ok)=>{
-    if(ok){ loadHistory(d); }
-    else { openAuth('login'); }
-  });
-  msgInput.focus();
-})();
+/* --------------- Init --------------- */
+dayEl.onchange = ()=>{ setPlan(); loadJournal(); };
+setPlan();
+hydrate();
 </script>
 </body>
 </html>
