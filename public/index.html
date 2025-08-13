@@ -1,130 +1,108 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>CoachBot — Programme 15 jours</title>
-  <link rel="icon" href="data:,">
-  <style>
-    :root{
-      --bg:#f8f9fa; --card:#fff; --text:#202124; --muted:#5f6368; --line:#e0e0e0;
-      --primary:#1a73e8; --primary-weak:#e8f0fe; --ok:#0f9d58; --danger:#d93025;
-    }
-    html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .wrap{max-width:980px;margin:0 auto;padding:20px 12px}
-    .top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:10px}
-    h1{font-size:20px;margin:0}
-    .pill{background:#fff;border:1px solid var(--line);padding:8px 10px;border-radius:999px;color:var(--muted)}
-    .btn{border:none;background:var(--primary);color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
-    .btn.alt{background:#5f6368}
-    .btn.ghost{background:#fff;color:var(--text);border:1px solid var(--line)}
-    .btn:disabled{opacity:.6;cursor:not-allowed}
-    .sel, .input, textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff}
-    .grid{display:grid;grid-template-columns:1fr;gap:12px}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-    .row{display:flex;gap:10px;align-items:center}
-    .chat{display:flex;flex-direction:column;gap:10px;max-height:56vh;overflow:auto;padding:4px 2px}
-    .bubble{display:inline-block;max-width:78%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);font-size:14px}
-    .me .bubble{background:#eef7ee;border-color:#daeadf}
-    .ai .bubble{background:#eef2ff;border-color:#dfe4ff}
-    .dot{width:10px;height:10px;border-radius:50%}
-    .dot.red{background:#ea4335}.dot.green{background:#34a853}
-    .muted{color:var(--muted);font-size:13px}
-    .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .footer-note{margin-top:8px;color:var(--muted);font-size:12px}
-
-    /* Modal */
-    .modal{position:fixed;inset:0;background:rgba(32,33,36,.5);display:none;align-items:center;justify-content:center;z-index:10}
-    .modal.open{display:flex}
-    .dialog{width:min(94vw,460px);background:#fff;border-radius:12px;border:1px solid var(--line);box-shadow:0 8px 30px rgba(0,0,0,.12)}
-    .dialog header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
-    .dialog main{padding:14px}
-    .tabs{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px}
-    .tab{flex:1;text-align:center;padding:8px 0;cursor:pointer;background:#fff}
-    .tab.active{background:var(--primary-weak);font-weight:600}
-    .pwd{position:relative}
-    .eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--muted)}
-
-    @media (min-width:840px){ .grid{grid-template-columns: 1fr 1fr; } }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CoachBot — Programme 15 jours</title>
+<link rel="icon" href="data:," />
+<style>
+:root{--bg:#f8f9fb;--fg:#202124;--muted:#5f6368;--pri:#1a73e8;--card:#fff;--br:#e6e8ec}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:24px 16px}
+h1{font-size:20px;margin:0 0 12px}
+.top{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.badge{background:#e8f0fe;border:1px solid #d2e3fc;padding:6px 10px;border-radius:999px;font-size:12px}
+.btn{border:1px solid var(--br);background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer}
+.btn.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
+select,input,textarea{width:100%;padding:10px;border:1px solid var(--br);border-radius:10px;background:#fff}
+.card{background:var(--card);border:1px solid var(--br);border-radius:16px;padding:14px}
+.row{display:flex;gap:10px;align-items:center}
+.chat{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+.bubble{display:inline-block;padding:10px 12px;border-radius:12px;border:1px solid var(--br);max-width:100%}
+.bubble.me{background:#eef7ee;border-color:#dbe9db}
+.bubble.ai{background:#eef2fb;border-color:#dbe2f7}
+.dot{width:8px;height:8px;border-radius:50% ;display:inline-block;margin-right:8px}
+.dot.me{background:#00b076} /* vert */
+.dot.ai{background:#e53935}  /* rouge */
+.controls{display:flex;gap:8px;align-items:center}
+textarea{min-height:110px;resize:vertical}
+.footer{font-size:12px;color:var(--muted);margin-top:8px}
+.modalScrim{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center}
+.modal{background:#fff;border-radius:14px;padding:16px;width:min(420px,90vw);box-shadow:0 8px 30px rgba(0,0,0,.18)}
+.tabs{display:flex;margin-bottom:10px}
+.tab{flex:1;text-align:center;padding:8px;border:1px solid var(--br);cursor:pointer}
+.tab.on{background:#f1f3f4}
+.eye{position:absolute;right:10px;top:10px;cursor:pointer}
+.ok{color:#0b8043;font-weight:600}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <h1>CoachBot</h1>
-      <div class="row" style="gap:8px;">
-        <span id="who" class="pill">Non connecté</span>
-        <button id="logoutBtn" class="btn alt" style="display:none">Déconnexion</button>
-        <button id="adminBtn" class="btn ghost" style="display:none" onclick="location.href='/admin'">Admin</button>
-        <button id="openAuth" class="btn">Connexion</button>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
-          <select id="daySel" class="sel" style="max-width:160px">
-            <option value="1">Jour 1</option><option value="2">Jour 2</option><option value="3">Jour 3</option>
-            <option value="4">Jour 4</option><option value="5">Jour 5</option><option value="6">Jour 6</option>
-            <option value="7">Jour 7</option><option value="8">Jour 8</option><option value="9">Jour 9</option>
-            <option value="10">Jour 10</option><option value="11">Jour 11</option><option value="12">Jour 12</option>
-            <option value="13">Jour 13</option><option value="14">Jour 14</option><option value="15">Jour 15</option>
-          </select>
-          <div class="row">
-            <label class="muted">Fournisseur : </label>
-            <select id="providerSel" class="sel" style="max-width:220px">
-              <option value="anthropic">Claude</option>
-            </select>
-          </div>
-        </div>
-        <div id="plan" class="muted" style="margin-top:8px"></div>
-      </div>
-
-      <div class="card">
-        <div class="toolbar">
-          <div class="muted">Point <b>vert</b> = toi • Point <b>rouge</b> = coach</div>
-          <span id="connState" class="muted">—</span>
-        </div>
-        <div id="chat" class="chat" aria-live="polite"></div>
-        <div class="row">
-          <textarea id="msg" rows="3" class="input" placeholder="Écris ton message au coach…"></textarea>
-          <button id="sendBtn" class="btn" style="height:fit-content">Envoyer</button>
-        </div>
-        <div class="footer-note">Streaming en temps réel avec Claude. Données enregistrées par jour côté serveur.</div>
-      </div>
+<div class="wrap">
+  <div class="top">
+    <h1>CoachBot</h1>
+    <div class="row">
+      <div id="who" class="badge">Non connecté</div>
+      <button id="logoutBtn" class="btn" style="display:none">Déconnexion</button>
+      <button id="adminBtn" class="btn" onclick="location.href='/admin'" style="display:none">Admin</button>
+      <button id="loginBtn" class="btn pri">Connexion</button>
     </div>
   </div>
 
-  <!-- MODAL AUTH -->
-  <div id="authModal" class="modal" role="dialog" aria-modal="true">
-    <div class="dialog">
-      <header>
-        <strong>Connexion</strong>
-        <button class="btn ghost" id="closeAuth">Fermer</button>
-      </header>
-      <main>
-        <div class="tabs">
-          <div id="tabUser" class="tab active">Utilisateur</div>
-          <div id="tabAdmin" class="tab">Admin</div>
-        </div>
+  <div class="card" style="margin-bottom:10px">
+    <div class="row" style="gap:8px">
+      <select id="daySel" style="max-width:160px"></select>
+      <button id="showPlan" class="btn">Afficher</button>
+    </div>
+    <div id="plan" style="margin-top:8px;color:var(--muted)"></div>
+  </div>
 
-        <div style="display:flex; flex-direction:column; gap:10px">
-          <input id="authEmail" class="input" type="email" placeholder="Email" autocomplete="username">
-          <div class="pwd">
-            <input id="authPassword" class="input" type="password" placeholder="Mot de passe" autocomplete="current-password">
-            <span id="togglePwd" class="eye">👁️</span>
-          </div>
-          <input id="authName" class="input" type="text" placeholder="Prénom (pour inscription)">
-          <div class="row" style="justify-content:space-between">
-            <button id="loginBtn" class="btn" style="flex:1">Connexion</button>
-            <button id="registerBtn" class="btn alt" style="flex:1">Inscription</button>
-          </div>
-          <div id="authErr" class="muted" style="color:var(--danger)"></div>
-        </div>
-      </main>
+  <div class="card">
+    <div class="footer">Point <span class="ok">vert</span> = toi • Point <span style="color:#e53935;font-weight:600">rouge</span> = coach</div>
+    <div id="chat" class="chat">
+      <div class="bubble ai"><span class="dot ai"></span>Bienvenue ! Choisis un jour, affiche le plan, puis écris ton message. Si on ne se connaît pas, dis‑moi ton prénom (ex. « je m’appelle Samir »).</div>
+    </div>
+    <div style="margin-top:8px">
+      <textarea id="msg" placeholder="Écris ton message au coach…"></textarea>
+    </div>
+    <div class="controls" style="justify-content:flex-end;margin-top:8px">
+      <select id="providerSel" style="max-width:220px">
+        <option value="anthropic">Fournisseur : Claude</option>
+      </select>
+      <button id="sendBtn" class="btn pri">Envoyer</button>
     </div>
   </div>
 
-  <script src="main.js"></script>
+  <div class="footer" id="status">Streaming activé avec Claude. Données enregistrées par jour et par utilisateur.</div>
+</div>
+
+<!-- Login modal -->
+<div id="scrim" class="modalScrim">
+  <div class="modal">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <div style="font-weight:600">Connexion</div>
+      <button class="btn" id="closeModal">Fermer</button>
+    </div>
+    <div class="tabs">
+      <div id="tabUser" class="tab on">Utilisateur</div>
+      <div id="tabAdmin" class="tab">Admin</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;position:relative">
+      <input id="email" type="email" placeholder="email">
+      <div style="position:relative">
+        <input id="pass" type="password" placeholder="mot de passe">
+        <span id="toggleEye" class="eye">👁</span>
+      </div>
+      <input id="regName" placeholder="Prénom (pour inscription)">
+      <div class="row" style="justify-content:space-between">
+        <button id="doLogin" class="btn pri">Connexion</button>
+        <button id="doRegister" class="btn">Inscription</button>
+      </div>
+      <div id="loginInfo" class="ok" style="display:none">✅ Connecté !</div>
+      <div id="loginErr" style="color:#d93025"></div>
+    </div>
+  </div>
+</div>
+
+<script src="main.js"></script>
 </body>
 </html>
