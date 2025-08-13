@@ -1,6 +1,4 @@
-// server.js — CoachBot multi‑users (Claude + JWT + journaux par jour)
-// Node >= 20 (fetch natif) — ES Modules
-
+// server.js — CoachBot multi-utilisateur (complet)
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
@@ -10,418 +8,301 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-
 dotenv.config();
 
-/* ----------------------- App & middlewares ----------------------- */
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(__filename);
 
-/* ----------------------- Config via ENV ------------------------- */
-const PORT             = process.env.PORT || 3000;
-const USERS_PATH       = process.env.USERS_PATH    || "/data/users.json";
-const JOURNAL_PATH     = process.env.JOURNAL_PATH  || "/data/journal.json";
-const META_PATH        = process.env.META_PATH     || "/data/meta.json";
-const PROMPT_PATH      = process.env.PROMPT_PATH   || path.join(__dirname, "prompt.txt");
-const JWT_SECRET       = process.env.JWT_SECRET    || "dev-secret-change-me";
-const ANTHROPIC_KEY    = process.env.ANTHROPIC_API_KEY || "";
-const ANTHROPIC_MODEL  = process.env.ANTHROPIC_MODEL   || "claude-3-5-sonnet-20241022";
+// --------- Fichiers / ENV ----------
+const USERS_PATH   = process.env.USERS_PATH   || "/data/users.json";   // comptes
+const JOURNAL_PATH = process.env.JOURNAL_PATH || "/data/journal.json"; // journal par user
+const META_PATH    = process.env.META_PATH    || "/data/meta.json";    // meta par user
+const PROMPT_PATH  = process.env.PROMPT_PATH  || path.join(__dirname, "prompt.txt");
+const JWT_SECRET   = process.env.JWT_SECRET   || "change_me_long_secret";
 
-/* ----------------------- File helpers --------------------------- */
-function ensureDir(p) {
-  fs.mkdirSync(path.dirname(p), { recursive: true });
+// --------- Helpers fichiers ----------
+function ensureDir(p){ fs.mkdirSync(path.dirname(p), { recursive: true }); }
+function loadJSON(p, fallback){
+  try { return JSON.parse(fs.readFileSync(p, "utf-8")); }
+  catch { return fallback; }
 }
-function loadJSON(p, fallback) {
-  try {
-    return JSON.parse(fs.readFileSync(p, "utf-8"));
-  } catch {
-    return fallback;
-  }
-}
-function saveJSON(p, obj) {
-  ensureDir(p);
-  fs.writeFileSync(p, JSON.stringify(obj, null, 2));
-}
-function readPrompt() {
-  try {
-    return fs.readFileSync(PROMPT_PATH, "utf-8");
-  } catch {
-    return "Tu es CoachBot. Réponds en français, de façon brève, concrète, en tutoyant.";
-  }
-}
+function saveJSON(p, obj){ ensureDir(p); fs.writeFileSync(p, JSON.stringify(obj, null, 2)); }
 
-/* ----------------------- Stores (fichiers) ---------------------- */
-// users.json  : { users: [{ id, email, passwordHash, name, createdAt }], nextId }
-// journal.json: { [userId]: { [day]: [{role, message, date}] } }
-// meta.json   : { [userId]: { name, disc } }
+// --------- Stores (schémas) ----------
+/*
+USERS: { byEmail: { email: { id, email, passwordHash, name } }, byId: { id: user } }
+JOURNAL: { [userId]: { [day]: [ {role, message, date} ] } }
+META: { [userId]: { name, disc } }
+*/
+function usersLoad(){ return loadJSON(USERS_PATH, { byEmail:{}, byId:{} }); }
+function usersSave(db){ saveJSON(USERS_PATH, db); }
 
-function initStores() {
-  const u = loadJSON(USERS_PATH, null);
-  if (!u || typeof u !== "object" || !Array.isArray(u?.users)) {
-    saveJSON(USERS_PATH, { users: [], nextId: 1 });
-  }
-  const j = loadJSON(JOURNAL_PATH, null);
-  if (!j || typeof j !== "object" || Array.isArray(j)) {
-    saveJSON(JOURNAL_PATH, {});
-  }
-  const m = loadJSON(META_PATH, null);
-  if (!m || typeof m !== "object" || Array.isArray(m)) {
-    saveJSON(META_PATH, {});
-  }
+function journalLoad(){ return loadJSON(JOURNAL_PATH, {}); }
+function journalSave(db){ saveJSON(JOURNAL_PATH, db); }
+
+function metaLoad(){ return loadJSON(META_PATH, {}); }
+function metaSave(db){ saveJSON(META_PATH, db); }
+
+// --------- Prompt / Plans ----------
+function getPromptText(){
+  try { return fs.readFileSync(PROMPT_PATH, "utf-8"); }
+  catch { return "Tu es CoachBot. Réponds en français, brièvement et concrètement, en tutoyant."; }
 }
-initStores();
-
-/* ----------------------- Small utils ---------------------------- */
 const plans = {
-  1:"Jour 1 — Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que ‘réussir’ signifie concrètement.",
-  2:"Jour 2 — Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",
-  3:"Jour 3 — Vision et critères de réussite : issue idéale + 3 indicateurs.",
-  4:"Jour 4 — Valeurs et motivations : aligne objectifs et valeurs.",
-  5:"Jour 5 — Énergie : estime de soi / amour propre / confiance.",
-  6:"Jour 6 — Confiance (suite) : preuves, retours, micro‑victoires.",
-  7:"Jour 7 — Bilan et KISS (Keep‑Improve‑Start‑Stop).",
-  8:"Jour 8 — Nouveau départ : cap et prochaines 48h.",
-  9:"Jour 9 — Plan d’action simple : 1 chose / jour.",
-  10:"Jour 10 — CNV : préparer un message clé.",
-  11:"Jour 11 — Décisions : Stop / Keep / Start.",
-  12:"Jour 12 — Échelle de responsabilité : au‑dessus de la ligne.",
-  13:"Jour 13 — Co‑développement éclair (pairing).",
-  14:"Jour 14 — Leadership (Maxwell).",
-  15:"Jour 15 — Bilan final + plan 30 jours."
+  1:"Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que « réussir » signifie concrètement.",
+  2:"Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",
+  3:"Vision et critères de réussite : issue idéale + 3 indicateurs.",
+  4:"Valeurs et motivations : aligne objectifs et valeurs.",
+  5:"Énergie : estime de soi / amour propre / confiance (3 niveaux).",
+  6:"Confiance (suite) : preuves, retours, micro‑victoires.",
+  7:"Bilan intermédiaire KISS (Keep / Improve / Start / Stop).",
+  8:"Nouveau départ : cap et prochaines 48h.",
+  9:"Plan d’action simple : 1 chose / jour.",
+  10:"CNV : préparer un message clé.",
+  11:"Décisions : Stop / Keep / Start.",
+  12:"Échelle de responsabilité : au‑dessus de la ligne.",
+  13:"Co‑développement éclair (pairing).",
+  14:"Leadership (Maxwell).",
+  15:"Bilan final + plan 30 jours."
 };
 
-function maybeExtractName(text) {
-  const t = (text || "").trim();
-  let m =
-    t.match(/je m(?:'|e)appelle\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i) ||
-    t.match(/moi c['’]est\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i) ||
-    (t.split(/\s+/).length === 1 ? [null, t] : null);
-  return m ? m[1].trim().replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ]+|[^A-Za-zÀ-ÖØ-öø-ÿ]+$/g, "") : null;
+// --------- DISC / prénom heuristiques ----------
+function maybeExtractName(text){
+  const t = (text||"").trim();
+  let m = t.match(/je m(?:'|e)appelle\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i)
+       || t.match(/moi c['’]est\s+([A-Za-zÀ-ÖØ-öø-ÿ' -]{2,30})/i)
+       || (t.split(/\s+/).length===1 ? [null,t] : null);
+  return m ? m[1].trim().replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ]+|[^A-Za-zÀ-ÖØ-öø-ÿ]+$/g,"") : null;
 }
-function inferDISC(text) {
-  const t = (text || "").trim();
-  const len = t.length;
-  const ex  = (t.match(/!/g) || []).length;
-  const hasCaps = /[A-Z]{3,}/.test(t);
-  const hasNums = /\d/.test(t);
-  const asksDetail  = /(détail|exact|précis|critère|mesurable|plan|checklist)/i.test(t);
-  const caresPeople = /(écoute|relation|aider|ensemble|émotion|ressenti|bienveillance)/i.test(t);
-  const wantsAction = /(action|résultat|vite|maintenant|objectif|deadline|priorit)/i.test(t);
-  if (wantsAction && (ex > 0 || hasCaps)) return "D";
-  if (ex > 1 || /cool|idée|créatif|enthous|fun/i.test(t)) return "I";
-  if (caresPeople || /calme|rassure|routine|habitude/i.test(t)) return "S";
-  if (asksDetail || hasNums || len > 240) return "C";
+function inferDISC(text){
+  const t=(text||"").trim(), ex=(t.match(/!/g)||[]).length;
+  const hasCaps=/[A-Z]{3,}/.test(t), hasNums=/\d/.test(t);
+  const asks=/(détail|exact|précis|critère|mesurable|plan|checklist)/i.test(t);
+  const people=/(écoute|relation|aider|ensemble|émotion|ressenti|bienveillance)/i.test(t);
+  const action=/(action|résultat|vite|maintenant|objectif|deadline|priorit)/i.test(t);
+  if(action&&(ex>0||hasCaps)) return "D";
+  if(ex>1||/cool|idée|créatif|enthous|fun/i.test(t)) return "I";
+  if(people||/calme|rassure|routine|habitude/i.test(t)) return "S";
+  if(asks||hasNums||t.length>240) return "C";
   return null;
 }
 
-/* ----------------------- Auth helpers --------------------------- */
-function usersStore() { return loadJSON(USERS_PATH, { users: [], nextId: 1 }); }
-function saveUsers(store) { saveJSON(USERS_PATH, store); }
-
-function findUserByEmail(email) {
-  const s = usersStore();
-  return s.users.find(u => u.email.toLowerCase() === String(email).toLowerCase()) || null;
-}
-function findUserById(id) {
-  const s = usersStore();
-  return s.users.find(u => u.id === id) || null;
-}
-
-function signToken(user) {
-  return jwt.sign({ uid: user.id, email: user.email }, JWT_SECRET, { expiresIn: "30d" });
-}
-function auth(req, res, next) {
-  try {
-    const hdr = req.headers.authorization || "";
-    const token = hdr.startsWith("Bearer ") ? hdr.slice(7) : null;
-    if (!token) return res.status(401).json({ error: "Token manquant" });
-    const payload = jwt.verify(token, JWT_SECRET);
-    const user = findUserById(payload.uid);
-    if (!user) return res.status(401).json({ error: "Utilisateur inconnu" });
-    req.user = user;
-    next();
-  } catch {
-    return res.status(401).json({ error: "Token invalide" });
-  }
+// --------- Auth utils ----------
+function signToken(user){ return jwt.sign({ uid:user.id, email:user.email }, JWT_SECRET, { expiresIn: "30d" }); }
+function authMiddleware(req,res,next){
+  const h=req.headers.authorization||"";
+  const m=h.match(/^Bearer (.+)$/i);
+  if(!m) return res.status(401).json({error:"Auth requise"});
+  try{
+    const payload=jwt.verify(m[1], JWT_SECRET);
+    const udb=usersLoad();
+    const user = udb.byId[payload.uid];
+    if(!user) return res.status(401).json({error:"Utilisateur inconnu"});
+    req.user=user; next();
+  }catch(e){ return res.status(401).json({error:"Token invalide"}); }
 }
 
-/* ----------------------- Journal & Meta per user ---------------- */
-function journalStore() { return loadJSON(JOURNAL_PATH, {}); }
-function saveJournal(obj) { saveJSON(JOURNAL_PATH, obj); }
-function metaStore() { return loadJSON(META_PATH, {}); }
-function saveMetaStore(obj) { saveJSON(META_PATH, obj); }
+// --------- Static UI ----------
+app.use(express.static(path.join(__dirname,"public")));
+app.get("/", (_req,res)=> res.sendFile(path.join(__dirname,"public","index.html")));
 
-function getUserDayEntries(userId, day) {
-  const j = journalStore();
-  const u = j[userId] || {};
-  const arr = u[day];
-  if (Array.isArray(arr)) return arr;
-  return [];
-}
-function addUserEntry(userId, day, entry) {
-  const j = journalStore();
-  j[userId] = j[userId] || {};
-  j[userId][day] = j[userId][day] || [];
-  j[userId][day].push(entry);
-  saveJournal(j);
-}
-function getUserMeta(userId) {
-  const m = metaStore();
-  return m[userId] || { name: null, disc: null };
-}
-function setUserMeta(userId, patch) {
-  const m = metaStore();
-  m[userId] = { ...(m[userId] || { name: null, disc: null }), ...patch };
-  saveMetaStore(m);
-  return m[userId];
-}
+// --------- Auth endpoints ----------
+app.post("/api/auth/register", (req,res)=>{
+  const { email, password, name } = req.body||{};
+  if(!email||!password) return res.status(400).json({error:"email et password requis"});
+  const udb=usersLoad();
+  if(udb.byEmail[email]) return res.status(409).json({error:"Email déjà utilisé"});
 
-/* ----------------------- Static / UI ---------------------------- */
-app.use(express.static(path.join(__dirname, "public")));
-app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
+  const id = "u_"+Math.random().toString(36).slice(2);
+  const passwordHash = bcrypt.hashSync(password, 10);
+  const user = { id, email, passwordHash, name: (name||"").trim() || null };
 
-/* ----------------------- Health ------------------------------- */
-app.get("/healthz", (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+  udb.byEmail[email]=user; udb.byId[id]=user; usersSave(udb);
 
-/* ----------------------- Auth API ------------------------------ */
-app.post("/api/auth/register", async (req, res) => {
-  try {
-    const { email, password, name } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "email et password requis" });
-    if (findUserByEmail(email)) return res.status(409).json({ error: "Email déjà utilisé" });
+  // init meta
+  const mdb=metaLoad(); mdb[id]={ name: user.name, disc: null }; metaSave(mdb);
 
-    const s = usersStore();
-    const id = s.nextId++;
-    const passwordHash = await bcrypt.hash(String(password), 10);
-    const user = { id, email: String(email), passwordHash, name: name || null, createdAt: new Date().toISOString() };
-    s.users.push(user);
-    saveUsers(s);
-
-    // init méta si prénom fourni
-    if (name) setUserMeta(id, { name });
-
-    const token = signToken(user);
-    res.json({ token, user: { id, email, name: user.name } });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
+  const token=signToken(user);
+  res.json({ token, user: { id:user.id, email:user.email, name:user.name } });
 });
 
-app.post("/api/auth/login", async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
-    const user = findUserByEmail(email);
-    if (!user) return res.status(401).json({ error: "Identifiants invalides" });
-    const ok = await bcrypt.compare(String(password), user.passwordHash);
-    if (!ok) return res.status(401).json({ error: "Identifiants invalides" });
-    const token = signToken(user);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
-  } catch {
-    res.status(500).json({ error: "Erreur serveur" });
-  }
+app.post("/api/auth/login", (req,res)=>{
+  const { email, password } = req.body||{};
+  if(!email||!password) return res.status(400).json({error:"email et password requis"});
+  const udb=usersLoad();
+  const user=udb.byEmail[email];
+  if(!user) return res.status(401).json({error:"Identifiants invalides"});
+  if(!bcrypt.compareSync(password, user.passwordHash)) return res.status(401).json({error:"Identifiants invalides"});
+  const token=signToken(user);
+  res.json({ token, user: { id:user.id, email:user.email, name:user.name } });
 });
 
-app.get("/api/me", auth, (req, res) => {
-  const meta = getUserMeta(req.user.id);
-  res.json({ user: { id: req.user.id, email: req.user.email, name: req.user.name ?? meta.name }, meta });
+app.get("/api/me", authMiddleware, (req,res)=>{
+  const mdb=metaLoad();
+  const meta = mdb[req.user.id] || { name: req.user.name || null, disc: null };
+  res.json({ user: { id:req.user.id, email:req.user.email, name:req.user.name||meta.name||null }, meta });
 });
 
-/* ----------------------- Journal API --------------------------- */
-app.get("/api/journal", auth, (req, res) => {
-  const day = String(req.query.day || 1);
-  res.json(getUserDayEntries(req.user.id, day));
-});
-app.post("/api/journal/save", auth, (req, res) => {
-  const { day = 1, message = "", role = "user" } = req.body || {};
-  addUserEntry(req.user.id, String(day), { role, message, date: new Date().toISOString() });
-  res.json({ success: true });
-});
-
-/* ----------------------- Meta API ------------------------------ */
-app.get("/api/meta", auth, (req, res) => res.json(getUserMeta(req.user.id)));
-app.post("/api/meta", auth, (req, res) => {
-  const patch = {};
-  if (req.body?.name) patch.name = String(req.body.name).trim();
-  if (req.body?.disc) patch.disc = String(req.body.disc).toUpperCase();
-  const meta = setUserMeta(req.user.id, patch);
-  res.json({ success: true, meta });
+// --------- Journal API (protégée) ----------
+app.get("/api/journal", authMiddleware, (req,res)=>{
+  const day = String(Number(req.query.day||1));
+  const jdb = journalLoad();
+  const userJ = jdb[req.user.id] || {};
+  const val = userJ[day];
+  const list = Array.isArray(val) ? val : (val && typeof val==="object" ? [val] : []);
+  res.json(list);
 });
 
-/* ----------------------- Prompt builders ----------------------- */
-function systemPrompt(name, disc) {
-  const base = readPrompt();
-  const note =
-    `\n\n[Contexte CoachBot]\nPrénom: ${name || "Inconnu"}\nDISC: ${disc || "À déduire"}\n` +
-    `Rappels: réponses courtes, concrètes, micro‑action 10 min, critère de réussite, tutoiement.`;
+function addEntry(userId, day, entry){
+  const jdb = journalLoad();
+  if(!jdb[userId]) jdb[userId]={};
+  const key=String(day);
+  const cur=jdb[userId][key];
+  const arr = Array.isArray(cur) ? cur : (cur && typeof cur==="object" ? [cur] : []);
+  arr.push(entry);
+  jdb[userId][key]=arr;
+  journalSave(jdb);
+}
+app.post("/api/journal/save", authMiddleware, (req,res)=>{
+  const { day=1, message="", role="user" } = req.body||{};
+  addEntry(req.user.id, day, { role, message, date:new Date().toISOString() });
+  res.json({success:true});
+});
+
+// --------- Meta API (protégée) ----------
+app.get("/api/meta", authMiddleware, (req,res)=>{
+  const mdb=metaLoad(); res.json(mdb[req.user.id] || { name:req.user.name||null, disc:null });
+});
+app.post("/api/meta", authMiddleware, (req,res)=>{
+  const mdb=metaLoad();
+  mdb[req.user.id] = mdb[req.user.id] || { name:null, disc:null };
+  if(req.body?.name) mdb[req.user.id].name = String(req.body.name).trim();
+  if(req.body?.disc) mdb[req.user.id].disc = String(req.body.disc).toUpperCase();
+  metaSave(mdb);
+  res.json({ success:true, meta:mdb[req.user.id] });
+});
+
+// --------- IA helpers / prompts ----------
+function systemPrompt(name, disc){
+  const base = getPromptText();
+  const note = `
+
+[Contexte CoachBot]
+Prénom: ${name || "Inconnu"}
+DISC: ${disc || "À déduire"}
+Rappels: réponses courtes, concrètes, micro‑action 10 min, critère de réussite, tutoiement.`;
   return base + note;
 }
-function makeUserPrompt(day, message) {
+function makeUserPrompt(day, message){
   const plan = plans[Number(day)] || "Plan non spécifié.";
-  return `Plan du jour (J${day}) : ${plan}\n\nMessage de l'utilisateur : ${message}`;
+  return `Plan du jour (${day}) : ${plan}\n\nMessage de l'utilisateur : ${message}`;
 }
 
-/* ----------------------- Chat (non‑stream) --------------------- */
-app.post("/api/chat", auth, async (req, res) => {
-  try {
-    const { message, day = 1, provider = "anthropic" } = req.body ?? {};
-    const meta = getUserMeta(req.user.id);
+// --------- Chat (protégé) non-stream & stream ----------
+app.post("/api/chat", authMiddleware, async (req,res)=>{
+  try{
+    const { message, day=1, provider="anthropic" } = req.body ?? {};
+    // enrichir meta via heuristiques
+    const mdb=metaLoad(); mdb[req.user.id]=mdb[req.user.id]||{name:req.user.name||null,disc:null};
+    if(!mdb[req.user.id].name){ const n=maybeExtractName(message); if(n?.length>=2) mdb[req.user.id].name=n; }
+    if(!mdb[req.user.id].disc){ const d=inferDISC(message); if(d) mdb[req.user.id].disc=d; }
+    metaSave(mdb);
 
-    // Si pas de prénom / DISC -> heuristiques
-    if (!meta.name) {
-      const n = maybeExtractName(message);
-      if (n && n.length >= 2) setUserMeta(req.user.id, { name: n });
-    }
-    if (!meta.disc) {
-      const d = inferDISC(message);
-      if (d) setUserMeta(req.user.id, { disc: d });
-    }
+    addEntry(req.user.id, day, { role:"user", message, date:new Date().toISOString() });
 
-    addUserEntry(req.user.id, String(day), { role: "user", message, date: new Date().toISOString() });
-
-    const system = systemPrompt(getUserMeta(req.user.id).name, getUserMeta(req.user.id).disc);
+    const system = systemPrompt(mdb[req.user.id].name, mdb[req.user.id].disc);
     const user   = makeUserPrompt(day, message);
 
-    if ((provider === "anthropic" || provider === "claude")) {
-      if (!ANTHROPIC_KEY) return res.status(500).json({ error: "ANTHROPIC_API_KEY manquante" });
-
-      // Contexte court : les 10 derniers messages du jour pour garder le fil
-      const history = getUserDayEntries(req.user.id, String(day)).slice(-10);
-      const historyText = history.map(h => `${h.role === "ai" ? "Coach" : "Utilisateur"}: ${h.message}`).join("\n");
-
+    if(provider==="anthropic"||provider==="claude"){
+      if(!process.env.ANTHROPIC_API_KEY) return res.status(500).json({error:"ANTHROPIC_API_KEY manquante"});
       const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": ANTHROPIC_KEY,
+        method:"POST",
+        headers:{
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
-          "content-type": "application/json"
+          "content-type":"application/json"
         },
         body: JSON.stringify({
-          model: ANTHROPIC_MODEL,
-          max_tokens: 800,
-          temperature: 0.4,
-          system,
-          messages: [{ role: "user", content: `${user}\n\nHistorique récent:\n${historyText}` }]
+          model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022",
+          max_tokens: 800, temperature: 0.4,
+          system, messages:[{role:"user", content:user}]
         })
       });
-
-      const text = await r.text();
-      let data; try { data = JSON.parse(text); } catch { data = null; }
-      if (!r.ok) {
-        console.error("Claude error:", r.status, text);
-        return res.status(500).json({ error: `Claude error ${r.status}`, details: text });
-      }
-      const reply = data?.content?.[0]?.text || "Je n’ai pas compris, peux-tu reformuler ?";
-      addUserEntry(req.user.id, String(day), { role: "ai", message: reply, date: new Date().toISOString() });
+      const text = await r.text(); let data; try{ data=JSON.parse(text); }catch{ data=null; }
+      if(!r.ok){ return res.status(500).json({error:`Claude error ${r.status}`, details:text}); }
+      const reply = data?.content?.[0]?.text || "Peux-tu reformuler ?";
+      addEntry(req.user.id, day, { role:"ai", message:reply, date:new Date().toISOString() });
       return res.json({ reply });
     }
-
-    return res.status(400).json({ error: "Fournisseur inconnu ou non activé" });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
+    res.status(400).json({error:"Fournisseur non pris en charge"});
+  }catch(e){ console.error(e); res.status(500).json({error:"Erreur serveur"}); }
 });
 
-/* ----------------------- Chat streaming (SSE) ------------------ */
-app.post("/api/chat/stream", auth, async (req, res) => {
-  const { message, day = 1, provider = "anthropic" } = req.body ?? {};
+app.post("/api/chat/stream", authMiddleware, async (req,res)=>{
+  const { message, day=1, provider="anthropic" } = req.body ?? {};
+  const mdb=metaLoad(); mdb[req.user.id]=mdb[req.user.id]||{name:req.user.name||null,disc:null};
+  if(!mdb[req.user.id].name){ const n=maybeExtractName(message); if(n?.length>=2) mdb[req.user.id].name=n; }
+  if(!mdb[req.user.id].disc){ const d=inferDISC(message); if(d) mdb[req.user.id].disc=d; }
+  metaSave(mdb);
 
-  // heuristiques prénom / DISC
-  const meta0 = getUserMeta(req.user.id);
-  if (!meta0.name) {
-    const n = maybeExtractName(message);
-    if (n && n.length >= 2) setUserMeta(req.user.id, { name: n });
-  }
-  if (!meta0.disc) {
-    const d = inferDISC(message);
-    if (d) setUserMeta(req.user.id, { disc: d });
-  }
+  addEntry(req.user.id, day, { role:"user", message, date:new Date().toISOString() });
 
-  addUserEntry(req.user.id, String(day), { role: "user", message, date: new Date().toISOString() });
-
-  const meta = getUserMeta(req.user.id);
-  const system = systemPrompt(meta.name, meta.disc);
+  const system = systemPrompt(mdb[req.user.id].name, mdb[req.user.id].disc);
   const user   = makeUserPrompt(day, message);
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
+  res.setHeader("Content-Type","text/event-stream");
+  res.setHeader("Cache-Control","no-cache");
+  res.setHeader("Connection","keep-alive");
   res.flushHeaders?.();
+  const send = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+  const end  = ()=>{ res.write("data: [DONE]\n\n"); res.end(); };
 
-  const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
-  const end  = () => { res.write("data: [DONE]\n\n"); res.end(); };
-
-  try {
-    if ((provider === "anthropic" || provider === "claude")) {
-      if (!ANTHROPIC_KEY) { send({ error: "ANTHROPIC_API_KEY manquante" }); return end(); }
-
-      // Contexte court
-      const history = getUserDayEntries(req.user.id, String(day)).slice(-10);
-      const historyText = history.map(h => `${h.role === "ai" ? "Coach" : "Utilisateur"}: ${h.message}`).join("\n");
-
+  try{
+    if(provider==="anthropic"||provider==="claude"){
+      if(!process.env.ANTHROPIC_API_KEY){ send({error:"ANTHROPIC_API_KEY manquante"}); return end(); }
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": ANTHROPIC_KEY,
+        method:"POST",
+        headers:{
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
-          "content-type": "application/json"
+          "content-type":"application/json"
         },
         body: JSON.stringify({
-          model: ANTHROPIC_MODEL,
-          max_tokens: 800,
-          temperature: 0.4,
-          stream: true,
-          system,
-          messages: [{ role: "user", content: `${user}\n\nHistorique récent:\n${historyText}` }]
+          model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022",
+          max_tokens: 800, temperature: 0.4, stream:true,
+          system, messages:[{ role:"user", content:user }]
         })
       });
+      if(!resp.ok||!resp.body){ const t=await resp.text().catch(()=> ""); send({error:`Claude stream error ${resp.status}: ${t}`}); return end(); }
 
-      if (!resp.ok || !resp.body) {
-        const t = await resp.text().catch(() => "");
-        console.error("Claude stream error:", resp.status, t);
-        send({ error: `Claude stream error ${resp.status}: ${t}` });
-        return end();
-      }
-
-      const reader  = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let full = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split("\n")) {
-          if (!line.startsWith("data:")) continue;
-          const payload = line.slice(5).trim();
-          if (payload === "[DONE]") break;
-          try {
-            const evt = JSON.parse(payload);
-            if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
-              const delta = evt.delta.text || "";
-              if (delta) { full += delta; send({ text: delta }); }
+      const reader=resp.body.getReader(); const decoder=new TextDecoder(); let full="";
+      while(true){
+        const {done, value}=await reader.read(); if(done) break;
+        const chunk=decoder.decode(value,{stream:true});
+        for(const line of chunk.split("\n")){
+          if(!line.startsWith("data:")) continue;
+          const payload=line.slice(5).trim(); if(payload==="[DONE]") continue;
+          try{
+            const evt=JSON.parse(payload);
+            if(evt.type==="content_block_delta" && evt.delta?.type==="text_delta"){
+              const d=evt.delta.text||""; if(d){ full+=d; send({text:d}); }
             }
-          } catch { /* ignore malformed */ }
+          }catch{}
         }
       }
-      if (full) addUserEntry(req.user.id, String(day), { role: "ai", message: full, date: new Date().toISOString() });
+      if(full) addEntry(req.user.id, day, { role:"ai", message:full, date:new Date().toISOString() });
       return end();
     }
-
-    send({ error: "Fournisseur inconnu ou non activé" });
-    return end();
-  } catch (e) {
-    console.error(e);
-    send({ error: "Erreur serveur" });
-    return end();
-  }
+    send({error:"Fournisseur non pris en charge"}); end();
+  }catch(e){ console.error(e); send({error:"Erreur serveur"}); end(); }
 });
 
-/* ----------------------- Start server -------------------------- */
-app.listen(PORT, () => {
-  console.log(`🚀 Serveur en ligne sur le port ${PORT}`);
-});
+// --------- Health ----------
+app.get("/healthz", (_req,res)=> res.json({ ok:true }));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, ()=> console.log("🚀 Serveur en ligne sur le port", PORT));
