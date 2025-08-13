@@ -1,295 +1,186 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CoachBot — Programme 15 jours</title>
-  <style>
-    :root{
-      --bg: #f8f9fa;
-      --text: #202124;
-      --subtle: #5f6368;
-      --card: #ffffff;
-      --line: #e0e0e0;
-      --accent: #1a73e8;
-      --accent-weak: #e8f0fe;
-      --radius: 14px;
-      --shadow: 0 1px 3px rgba(0,0,0,.06), 0 6px 24px rgba(0,0,0,.06);
-      --maxw: 980px;
-      --chatw: 760px;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      color:var(--text); background:var(--bg);
-    }
-    .wrap{max-width:var(--maxw); margin:0 auto; padding:24px 16px 64px;}
-    .topbar{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px;}
-    .brand{display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:.2px;}
-    .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);}
-    .dayselect{display:flex; align-items:center; gap:8px; color:var(--subtle);}
-    select{
-      appearance:none; border:1px solid var(--line); background:var(--card);
-      padding:10px 14px; border-radius:10px; color:var(--text); box-shadow:var(--shadow);
-    }
-    .plan{
-      background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
-      padding:18px; box-shadow:var(--shadow); margin-bottom:22px;
-    }
-    .plan h2{margin:0 0 6px 0; font-size:16px; color:var(--subtle); font-weight:600;}
-    .center{display:flex; flex-direction:column; align-items:center; gap:10px; margin:18px auto 8px;}
-    .search{
-      width:min(var(--chatw),100%); display:flex; align-items:center; gap:8px;
-      background:var(--card); border:1px solid var(--line); border-radius:28px;
-      padding:10px 12px 10px 16px; box-shadow:var(--shadow);
-    }
-    .search input{
-      flex:1; border:none; outline:none; background:transparent; font-size:16px; color:var(--text);
-    }
-    .primary{
-      padding:10px 16px; border:none; border-radius:22px; background:var(--accent);
-      color:white; font-weight:600; cursor:pointer;
-    }
-    .primary:active{transform:translateY(1px)}
-    .history{width:min(var(--chatw),100%); margin:6px auto 0;}
-    .row{display:flex; margin:6px 0;}
-    .row.user{justify-content:flex-end}
-    .row.bot{justify-content:flex-start}
-    .msg{
-      display:inline-flex; align-items:flex-start; gap:10px;
-      max-width:85%; padding:10px 14px; border-radius:16px; line-height:1.5;
-    }
-    .msg .bubble{white-space:pre-wrap}
-    .msg .led{width:10px;height:10px;border-radius:50%;margin-top:7px;flex:0 0 auto}
-    .led-user{background:#1db954;}  /* vert */
-    .led-bot{background:#d93025;}   /* rouge */
-    .user .msg{background:#eef2f3; color:var(--text);}
-    .bot .msg{background:var(--accent-weak); color:var(--text);}
-    .footer{display:flex; gap:18px; align-items:center; justify-content:center; margin-top:28px; color:var(--subtle); font-size:14px;}
-    .footer a{color:var(--accent); text-decoration:none}
-    .footer a:hover{text-decoration:underline}
-    .hint{color:var(--subtle); font-size:14px; margin:4px 0 0 0; text-align:center}
-    .toolbar{display:flex; gap:10px; align-items:center; justify-content:space-between; width:min(var(--chatw),100%); margin:0 auto 12px;}
-    .toolbar .right{display:flex; gap:8px; align-items:center}
-    .ghost{opacity:.6}
-    @media (max-width:640px){.topbar{flex-direction:column; align-items:flex-start; gap:6px}}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CoachBot — Programme 15 jours</title>
+<style>
+:root{
+  --bg:#f8f9fa; --text:#202124; --sub:#5f6368; --card:#fff; --line:#e0e0e0;
+  --accent:#1a73e8; --muted:#eef2f3; --weak:#e8f0fe; --radius:14px;
+  --shadow:0 1px 3px rgba(0,0,0,.06), 0 6px 24px rgba(0,0,0,.06);
+  --maxw:980px; --chatw:760px;
+}
+*{box-sizing:border-box} body{margin:0;font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:var(--bg)}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:24px 16px 64px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+.brand{display:flex;gap:10px;align-items:center;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.right{display:flex;gap:10px;align-items:center;color:var(--sub)}
+.badge{background:var(--weak);padding:6px 10px;border-radius:999px;border:1px solid var(--line)}
+button, input, select{font:inherit}
+select{appearance:none;border:1px solid var(--line);background:var(--card);padding:10px 14px;border-radius:10px;color:var(--text);box-shadow:var(--shadow)}
+.plan{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);margin-bottom:22px}
+.plan h2{margin:0 0 6px;color:var(--sub);font-size:16px}
+.center{display:flex;flex-direction:column;align-items:center;gap:10px;margin:18px auto 8px}
+.search{width:min(var(--chatw),100%);display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:28px;padding:10px 12px 10px 16px;box-shadow:var(--shadow)}
+.search input{flex:1;border:none;outline:none;background:transparent}
+.primary{padding:10px 16px;border:none;border-radius:22px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+.primary:active{transform:translateY(1px)}
+.toolbar{display:flex;gap:10px;align-items:center;justify-content:flex-end;width:min(var(--chatw),100%);margin:0 auto 12px}
+.secondary{background:#5f6368}
+.tertiary{background:#9aa0a6}
+.history{width:min(var(--chatw),100%);margin:6px auto 0}
+.row{display:flex;margin:6px 0}
+.row.user{justify-content:flex-end}
+.row.bot{justify-content:flex-start}
+.msg{display:inline-flex;align-items:flex-start;gap:10px;max-width:85%;padding:10px 14px;border-radius:16px}
+.msg .bubble{white-space:pre-wrap}
+.msg .led{width:10px;height:10px;border-radius:50%;margin-top:7px;flex:0 0 auto}
+.led-user{background:#1db954}
+.led-bot{background:#d93025}
+.user .msg{background:var(--muted)}
+.bot .msg{background:var(--weak)}
+.hint{color:var(--sub);font-size:14px;text-align:center}
+.footer{display:flex;gap:18px;align-items:center;justify-content:center;margin-top:28px;color:var(--sub);font-size:14px}
+.footer a{color:var(--accent);text-decoration:none}
+.footer a:hover{text-decoration:underline}
+@media(max-width:640px){.top{flex-direction:column;align-items:flex-start;gap:6px}}
+
+/* Modal */
+.modal-back{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
+.modal{width:min(420px,100%);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px}
+.modal h3{margin:0 0 12px}
+.field{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.input{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
+.actions{display:flex;gap:10px;justify-content:flex-end;margin-top:10px}
+.link{color:var(--accent);background:none;border:none;cursor:pointer;padding:0}
+.err{color:#d93025;font-size:14px;min-height:18px}
+.ok{color:#1a73e8;font-size:14px;min-height:18px}
+.badge.warn{background:#fde04730;border-color:#facc15}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <!-- TOP -->
-    <div class="topbar">
-      <div class="brand"><span class="dot"></span> CoachBot — Programme 15 jours</div>
-      <div class="dayselect">
-        Jour :
-        <select id="daySelect" aria-label="Jour">
-          <option value="1">Jour 1</option><option value="2">Jour 2</option><option value="3">Jour 3</option>
-          <option value="4">Jour 4</option><option value="5">Jour 5</option><option value="6">Jour 6</option>
-          <option value="7">Jour 7</option><option value="8">Jour 8</option><option value="9">Jour 9</option>
-          <option value="10">Jour 10</option><option value="11">Jour 11</option><option value="12">Jour 12</option>
-          <option value="13">Jour 13</option><option value="14">Jour 14</option><option value="15">Jour 15</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- PLAN -->
-    <div class="plan">
-      <h2>Plan du jour (<span id="planLabel">J1</span>)</h2>
-      <p id="planText">Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que « réussir » signifie concrètement.</p>
-    </div>
-
-    <!-- SEARCH / INPUT -->
-    <div class="center">
-      <div class="search">
-        <input id="msgInput" type="text" placeholder="Écris ton message… (Ex : « je m’appelle Samir » pour enregistrer ton prénom)" />
-        <button id="sendBtn" class="primary">Envoyer</button>
-      </div>
-      <div class="hint">Réponses en temps réel via Claude. Les discussions sont séparées par jour.</div>
-    </div>
-
-    <!-- OUTILS BAR (export / effacer) -->
-    <div class="toolbar">
-      <div class="ghost"> </div>
-      <div class="right">
-        <button id="exportBtn" class="primary" style="background:#5f6368">Exporter</button>
-        <button id="clearBtn" class="primary" style="background:#9aa0a6">Effacer écran</button>
-      </div>
-    </div>
-
-    <!-- HISTORY -->
-    <div id="history" class="history"></div>
-
-    <!-- FOOTER -->
-    <div class="footer">
-      <a href="#" id="toolLink">Outil utile</a> · <span>Interface épurée — style Google</span>
+<div class="wrap">
+  <!-- TOP -->
+  <div class="top">
+    <div class="brand"><span class="dot"></span> CoachBot — Programme 15 jours</div>
+    <div class="right">
+      <span id="who" class="badge warn">Non connecté</span>
+      <select id="daySelect" aria-label="Jour">
+        <option value="1">Jour 1</option><option value="2">Jour 2</option><option value="3">Jour 3</option>
+        <option value="4">Jour 4</option><option value="5">Jour 5</option><option value="6">Jour 6</option>
+        <option value="7">Jour 7</option><option value="8">Jour 8</option><option value="9">Jour 9</option>
+        <option value="10">Jour 10</option><option value="11">Jour 11</option><option value="12">Jour 12</option>
+        <option value="13">Jour 13</option><option value="14">Jour 14</option><option value="15">Jour 15</option>
+      </select>
+      <button id="logoutBtn" class="primary tertiary" title="Déconnexion">Quitter</button>
+      <button id="loginBtn"  class="primary" title="Connexion">Connexion</button>
     </div>
   </div>
 
-  <script>
-    // -------- Plans du jour (mêmes objectifs que côté serveur) ----------
-    const PLANS = {
-      1:"Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que « réussir » signifie concrètement.",
-      2:"Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",
-      3:"Vision et critères de réussite : issue idéale + 3 indicateurs.",
-      4:"Valeurs et motivations : aligne objectifs et valeurs.",
-      5:"Énergie : estime de soi / amour propre / confiance (3 niveaux).",
-      6:"Confiance (suite) : preuves, retours, micro‑victoires.",
-      7:"Bilan intermédiaire KISS (Keep / Improve / Start / Stop).",
-      8:"Nouveau départ : cap et prochaines 48h.",
-      9:"Plan d’action simple : 1 chose / jour.",
-      10:"CNV : préparer un message clé.",
-      11:"Décisions : Stop / Keep / Start.",
-      12:"Échelle de responsabilité : au‑dessus de la ligne.",
-      13:"Co‑développement éclair (pairing).",
-      14:"Leadership (Maxwell).",
-      15:"Bilan final + plan 30 jours."
-    };
+  <!-- PLAN -->
+  <div class="plan">
+    <h2>Plan du jour (<span id="planLabel">J1</span>)</h2>
+    <p id="planText">Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que « réussir » signifie concrètement.</p>
+  </div>
 
-    // -------- DOM ----------
-    const daySelect = document.getElementById('daySelect');
-    const planLabel = document.getElementById('planLabel');
-    const planText  = document.getElementById('planText');
-    const historyEl = document.getElementById('history');
-    const msgInput  = document.getElementById('msgInput');
-    const sendBtn   = document.getElementById('sendBtn');
-    const exportBtn = document.getElementById('exportBtn');
-    const clearBtn  = document.getElementById('clearBtn');
+  <!-- INPUT -->
+  <div class="center">
+    <div class="search">
+      <input id="msgInput" type="text" placeholder="Écris ton message… (ex: « je m’appelle Samir »)" />
+      <button id="sendBtn" class="primary">Envoyer</button>
+    </div>
+    <div class="hint">Réponses en temps réel via Claude. Les discussions sont séparées par jour.</div>
+  </div>
 
-    // -------- Helpers UI ----------
-    function row(role, text){
-      const el = document.createElement('div');
-      el.className = 'row ' + (role === 'user' ? 'user' : 'bot');
-      el.innerHTML = `
-        <div class="msg">
-          <span class="led ${role==='user'?'led-user':'led-bot'}"></span>
-          <div class="bubble"></div>
-        </div>`;
-      el.querySelector('.bubble').textContent = text;
-      return el;
-    }
-    function scrollToEnd(){ historyEl.scrollTop = historyEl.scrollHeight; }
+  <!-- TOOLS -->
+  <div class="toolbar">
+    <button id="exportBtn" class="primary secondary">Exporter</button>
+    <button id="clearBtn"  class="primary tertiary">Effacer écran</button>
+  </div>
 
-    function setPlan(day){
-      planLabel.textContent = 'J' + day;
-      planText.textContent  = PLANS[day] || '';
-    }
+  <!-- HISTORY -->
+  <div id="history" class="history"></div>
 
-    // -------- Load history ----------
-    async function loadHistory(day){
-      historyEl.innerHTML = '';
-      // Message d’accueil
-      historyEl.appendChild(row('bot',
-        "Bienvenue ! Choisis un jour, affiche le plan, puis écris ton message. Si on ne se connaît pas, dis-moi ton prénom (ex. « je m’appelle Salim »)."
-      ));
-      try {
-        const r = await fetch(`/api/journal?day=${day}`);
-        if(!r.ok) throw new Error('HTTP ' + r.status);
-        const items = await r.json();
-        for(const it of items){
-          historyEl.appendChild(row(it.role === 'ai' ? 'bot' : it.role, it.message));
-        }
-        scrollToEnd();
-      } catch(e){
-        historyEl.appendChild(row('bot', 'Erreur : impossible de charger le journal.'));
-      }
-    }
+  <div class="footer">Interface épurée — style Google</div>
+</div>
 
-    // -------- Stream reply (Claude) ----------
-    async function streamClaude(message, day){
-      // Ajoute le message user dans l’historique et côté serveur
-      historyEl.appendChild(row('user', message));
-      scrollToEnd();
+<!-- MODALE AUTH -->
+<div id="authModal" class="modal-back" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <h3 id="modalTitle">Connexion</h3>
+    <div class="field" id="nameField" style="display:none">
+      <label for="name">Prénom (optionnel)</label>
+      <input id="name" class="input" type="text" placeholder="ex: Samir" />
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" class="input" type="email" placeholder="ton@email.com" />
+    </div>
+    <div class="field">
+      <label for="pwd">Mot de passe</label>
+      <input id="pwd" class="input" type="password" placeholder="••••••••" />
+    </div>
+    <div class="err" id="authErr"></div>
+    <div class="ok" id="authOk"></div>
+    <div class="actions">
+      <button id="toggleMode" class="link">Créer un compte</button>
+      <button id="authCancel" class="primary tertiary">Annuler</button>
+      <button id="authSubmit" class="primary">Valider</button>
+    </div>
+  </div>
+</div>
 
-      const botRow = row('bot', '…');
-      const bubble = botRow.querySelector('.bubble');
-      bubble.textContent = ''; // vide pour remplir progressivement
-      historyEl.appendChild(botRow);
-      scrollToEnd();
+<script>
+// ---------- Plans ----------
+const PLANS={1:"Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que « réussir » signifie concrètement.",
+2:"Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",3:"Vision et critères de réussite : issue idéale + 3 indicateurs.",
+4:"Valeurs et motivations : aligne objectifs et valeurs.",5:"Énergie : estime de soi / amour propre / confiance (3 niveaux).",
+6:"Confiance (suite) : preuves, retours, micro‑victoires.",7:"Bilan intermédiaire KISS (Keep / Improve / Start / Stop).",
+8:"Nouveau départ : cap et prochaines 48h.",9:"Plan d’action simple : 1 chose / jour.",10:"CNV : préparer un message clé.",
+11:"Décisions : Stop / Keep / Start.",12:"Échelle de responsabilité : au‑dessus de la ligne.",
+13:"Co‑développement éclair (pairing).",14:"Leadership (Maxwell).",15:"Bilan final + plan 30 jours."};
 
-      try{
-        const resp = await fetch('/api/chat/stream', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ message, day, provider:'anthropic' })
-        });
-        if(!resp.ok || !resp.body){
-          bubble.textContent = "Erreur côté IA (stream indisponible).";
-          return;
-        }
-        const reader = resp.body.getReader();
-        const decoder = new TextDecoder();
-        let full = '';
-        while(true){
-          const {done, value} = await reader.read();
-          if(done) break;
-          const chunk = decoder.decode(value, {stream:true});
-          for(const line of chunk.split('\n')){
-            if(!line.startsWith('data:')) continue;
-            const payload = line.slice(5).trim();
-            if(payload === '[DONE]') continue;
-            try{
-              const evt = JSON.parse(payload);
-              if(evt.text){ full += evt.text; bubble.textContent += evt.text; scrollToEnd(); }
-              if(evt.error){ bubble.textContent = 'Erreur : ' + evt.error; }
-            }catch{}
-          }
-        }
-      }catch(e){
-        bubble.textContent = 'Erreur réseau.';
-      }
-    }
+// ---------- DOM ----------
+const daySelect = document.getElementById('daySelect');
+const planLabel = document.getElementById('planLabel');
+const planText  = document.getElementById('planText');
+const historyEl = document.getElementById('history');
+const msgInput  = document.getElementById('msgInput');
+const sendBtn   = document.getElementById('sendBtn');
+const exportBtn = document.getElementById('exportBtn');
+const clearBtn  = document.getElementById('clearBtn');
+const who       = document.getElementById('who');
+const logoutBtn = document.getElementById('logoutBtn');
+const loginBtn  = document.getElementById('loginBtn');
 
-    // -------- Export ----------
-    function exportTxt(){
-      const lines = [...historyEl.querySelectorAll('.row')].map(r=>{
-        const role = r.classList.contains('user') ? 'USER' : 'COACH';
-        const txt  = r.querySelector('.bubble').textContent;
-        return `[${role}] ${txt}`;
-      }).join('\n\n');
-      const blob = new Blob([lines], {type:'text/plain;charset=utf-8'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `journal_J${daySelect.value}.txt`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }
+const authModal = document.getElementById('authModal');
+const modalTitle= document.getElementById('modalTitle');
+const nameField = document.getElementById('nameField');
+const nameInput = document.getElementById('name');
+const emailInput= document.getElementById('email');
+const pwdInput  = document.getElementById('pwd');
+const authErr   = document.getElementById('authErr');
+const authOk    = document.getElementById('authOk');
+const btnToggle = document.getElementById('toggleMode');
+const btnCancel = document.getElementById('authCancel');
+const btnSubmit = document.getElementById('authSubmit');
 
-    // -------- Clear (écran seulement, pas serveur) ----------
-    function clearScreen(){
-      historyEl.innerHTML = '';
-    }
+let mode = "login"; // or "register"
 
-    // -------- Events ----------
-    sendBtn.addEventListener('click', ()=>{
-      const txt = msgInput.value.trim();
-      if(!txt) return;
-      streamClaude(txt, Number(daySelect.value));
-      msgInput.value = '';
-      msgInput.focus();
-    });
-    msgInput.addEventListener('keydown', (e)=>{
-      if(e.key==='Enter'){ e.preventDefault(); sendBtn.click(); }
-    });
-    daySelect.addEventListener('change', ()=>{
-      const d = Number(daySelect.value);
-      localStorage.setItem('coachbot.day', String(d));
-      setPlan(d);
-      loadHistory(d);
-    });
-    exportBtn.addEventListener('click', exportTxt);
-    clearBtn.addEventListener('click', clearScreen);
+// ---------- Token & fetch helper ----------
+function getToken(){ return localStorage.getItem('coachbot.token') || null; }
+function setToken(t){ if(t) localStorage.setItem('coachbot.token', t); else localStorage.removeItem('coachbot.token'); }
+async function api(path, options={}){
+  const headers = Object.assign({ 'Content-Type':'application/json' }, options.headers||{});
+  const token = getToken(); if(token) headers['Authorization'] = 'Bearer ' + token;
+  const r = await fetch(path, Object.assign({}, options, { headers }));
+  return r;
+}
 
-    // -------- Init ----------
-    (function init(){
-      const saved = Number(localStorage.getItem('coachbot.day')||'1');
-      if(saved>=1 && saved<=15){ daySelect.value = String(saved); }
-      const d = Number(daySelect.value);
-      setPlan(d);
-      loadHistory(d);
-      msgInput.focus();
-    })();
-  </script>
-</body>
-</html>
+// ---------- UI helpers ----------
+function row(role, text){
+  const el=document.createElement('div');
+  el.className='row '+(role==='user'?'user':'bot');
+  el.innerHTML=`<div class="msg"><span class="led ${role==='user'?'led
