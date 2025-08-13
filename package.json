@@ -1,16 +1,19 @@
 {
   "name": "coachbot",
   "version": "1.0.0",
-  "description": "Application CoachBot simplifiée",
-  "main": "server.js",
+  "description": "CoachBot 15 jours - multi-utilisateur (JSON + Claude)",
   "type": "module",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
+    "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.2",
-    "dotenv": "^16.3.1"
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "uuid": "^9.0.1"
   }
 }
