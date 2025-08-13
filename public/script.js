@@ -1,4 +1,4 @@
-// Plans (doit matcher le serveur)
+// Plans (pour affichage uniquement, le serveur a sa propre copie)
 const plans = {
   1:"Jour 1 — Clarification des intentions : précise le défi prioritaire à résoudre en 15 jours, pourquoi c’est important, et ce que ‘réussir’ signifie concrètement.",
   2:"Jour 2 — Diagnostic de la situation actuelle : état des lieux, 3 leviers, 3 obstacles.",
@@ -52,12 +52,11 @@ function toast(msg){
 async function loadHistoryFor(day){
   const items = await apiGet(`/api/journal?day=${day}`);
   chatBox.innerHTML = "";
-  addMsg('ai', "Bienvenue ! Choisis un jour, affiche le plan, puis écris ton message.");
+  addMsg('ai', "Bienvenue ! Choisis un jour, affiche le plan, puis écris ton message. Si on ne se connaît pas, dis‑moi ton prénom (ex. « je m’appelle Salim »).");
   for (const it of items){
-    // compat rétro : si pas de role mais message commence par [AI], on force 'ai'
-    let role = it.role || (String(it.message||"").startsWith("[AI] ") ? 'ai' : 'user');
-    const text = String(it.message||"").replace(/^\[AI\]\s*/, "");
-    addMsg(role === 'ai' ? 'ai' : 'user', text);
+    const role = it.role === 'ai' ? 'ai' : 'user';
+    const text = String(it.message||"").replace(/^\[AI\]\s*/,"");
+    addMsg(role, text);
   }
 }
 loadHistoryFor(Number(daySelect.value));
@@ -78,7 +77,7 @@ document.getElementById('btnNext').onclick = () => {
   daySelect.value = v; dayPlan.textContent = plans[v] || "";
   loadHistoryFor(v);
 };
-document.getElementById('btnTool').onclick = () => toast("Astuce : note une micro‑action de 10 minutes.");
+document.getElementById('btnTool').onclick = () => toast("Astuce : note une micro‑action de 10 minutes, faisable aujourd’hui.");
 document.getElementById('btnClear').onclick = () => { chatBox.innerHTML = ""; };
 document.getElementById('btnExport').onclick = async () => {
   const day = Number(daySelect.value);
@@ -89,7 +88,7 @@ document.getElementById('btnExport').onclick = async () => {
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 };
 
-// Streaming helper
+// Streaming SSE helper
 async function streamChat({ message, day, provider }, onDelta, onDone, onError){
   try{
     const resp = await fetch('/api/chat/stream', {
@@ -129,7 +128,7 @@ document.getElementById('btnSend').onclick = async () => {
   // journaliser côté serveur (par jour)
   await apiPost('/api/journal/save', { day, message: txt, role: 'user' });
 
-  // start stream
+  // réponse en streaming
   const bubble = addMsg('ai', "…");
   let acc = "";
 
