@@ -5,22 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Admin — CoachBot</title>
 <style>
-body{margin:0;background:#f8f9fa;color:#202124;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+:root{--bg:#f8f9fb;--fg:#202124;--muted:#5f6368;--pri:#1a73e8;--card:#fff;--br:#e6e8ec}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
 .wrap{max-width:980px;margin:0 auto;padding:24px 16px}
 h1{font-size:20px;margin:0 0 16px}
-.card{background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card{background:var(--card);border:1px solid var(--br);border-radius:12px;padding:16px;margin:12px 0}
 .row{display:flex;gap:12px;align-items:center;justify-content:space-between;border-bottom:1px solid #eee;padding:8px 0}
 .row:last-child{border-bottom:none}
-.badge{background:#e8f0fe;border:1px solid #d2e3fc;padding:4px 8px;border-radius:999px}
-button{border:none;background:#1a73e8;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
-button.alt{background:#5f6368}
+.badge{background:#e8f0fe;border:1px solid #d2e3fc;padding:6px 10px;border-radius:999px}
+.btn{border:1px solid var(--br);background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer}
+.btn.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
 table{width:100%;border-collapse:collapse}
 th,td{padding:8px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
-th{color:#5f6368}
-.topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
-input{padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px}
-.info{color:#5f6368}
+th{color:var(--muted)}
+input{padding:8px 10px;border:1px solid var(--br);border-radius:10px}
+.info{color:var(--muted)}
 .err{color:#d93025}
+.topbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -28,15 +29,16 @@ input{padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px}
   <div class="topbar">
     <h1>Admin — CoachBot</h1>
     <div>
-      <button id="refreshBtn" class="alt">Rafraîchir</button>
-      <button onclick="location.href='/'">Retour app</button>
+      <button id="repairBtn" class="btn">Réparer users.json</button>
+      <button id="refreshBtn" class="btn">Rafraîchir</button>
+      <button class="btn pri" onclick="location.href='/'">Retour app</button>
     </div>
   </div>
 
   <div class="card">
     <div class="row">
       <div><strong>Statistiques</strong> <span id="statInfo" class="info"></span></div>
-      <div id="statResume" class="badge">–</div>
+      <div id="statResume" class="badge">—</div>
     </div>
     <div id="perDay" style="margin-top:10px"></div>
     <div id="statErr" class="err" style="margin-top:8px"></div>
@@ -45,7 +47,7 @@ input{padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px}
   <div class="card">
     <div class="row">
       <strong>Utilisateurs</strong>
-      <div>
+      <div class="row" style="gap:8px">
         <label class="info">Filtrer</label>
         <input id="q" placeholder="email ou nom…" />
       </div>
@@ -61,12 +63,12 @@ input{padding:8px 10px;border:1px solid #e0e0e0;border-radius:8px}
 </div>
 
 <script>
-function token(){ return localStorage.getItem('coachbot.token')||null; }
+const TOKEN_KEY = "coachbot.token";
+function token(){ return localStorage.getItem(TOKEN_KEY) || null; }
 async function api(path, opt={}){
-  const headers = Object.assign({ "Content-Type":"application/json" }, opt.headers||{});
-  const t = token(); if(t) headers.Authorization = 'Bearer '+t;
-  const r = await fetch(path, Object.assign({},opt,{headers}));
-  return r;
+  const headers = { "Content-Type":"application/json", ...(opt.headers||{}) };
+  const t = token(); if(t) headers.Authorization = "Bearer "+t;
+  return fetch(path, { ...opt, headers });
 }
 
 async function loadStats(){
@@ -88,15 +90,15 @@ function drawUsers(list){
   const tb = document.querySelector('#usersTbl tbody');
   tb.innerHTML = '';
   for(const u of list){
-    if(q && !(u.email.toLowerCase().includes(q) || (u.name||'').toLowerCase().includes(q))) continue;
+    if(q && !(u.email?.toLowerCase().includes(q) || (u.name||'').toLowerCase().includes(q))) continue;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${u.name||'—'}</td>
-      <td>${u.email}</td>
+      <td>${u.email||'—'}</td>
       <td>${u.role}</td>
       <td>${u.createdAt ? new Date(u.createdAt).toLocaleString() : '—'}</td>
       <td>
-        <button data-id="${u.id}" data-role="${u.role==='admin'?'user':'admin'}">
+        <button data-id="${u.id}" data-role="${u.role==='admin'?'user':'admin'}" class="btn">
           ${u.role==='admin'?'Rétrograder':'Promouvoir admin'}
         </button>
       </td>`;
@@ -127,7 +129,31 @@ async function loadUsers(){
 
 document.getElementById('refreshBtn').addEventListener('click', ()=>{ loadStats(); loadUsers(); });
 document.getElementById('q').addEventListener('input', loadUsers);
-loadStats(); loadUsers();
+document.getElementById('repairBtn').addEventListener('click', async ()=>{
+  if(!confirm("Nettoyer les entrées invalides de users.json ?")) return;
+  const r = await api('/api/admin/repair', { method:'POST' });
+  const d = await r.json().catch(()=> ({}));
+  alert(r.ok ? `OK: ${JSON.stringify(d)}` : 'Échec réparation');
+  loadUsers();
+});
+
+// Boot
+(async ()=>{
+  // vérifie qu'on est connecté admin
+  const me = await api('/api/me');
+  if(!me.ok){
+    alert('Connecte-toi en admin depuis la page principale.');
+    location.href='/';
+    return;
+  }
+  const d = await me.json();
+  if(d?.user?.role !== 'admin'){
+    alert('Accès réservé admin.');
+    location.href='/';
+    return;
+  }
+  loadStats(); loadUsers();
+})();
 </script>
 </body>
 </html>
