@@ -1,67 +1,137 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" class="h-full bg-slate-950">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>CoachBot — 15 jours</title>
-  <link rel="stylesheet" href="/style.css"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CoachBot – Programme 15 jours</title>
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Styles additionnels -->
+  <link rel="stylesheet" href="/style.css" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { DEFAULT: '#22d3ee' },
+          }
+        }
+      }
+    }
+  </script>
 </head>
-<body>
-  <div class="app">
-    <header class="topbar">
-      <div class="brand">CoachBot</div>
-      <div class="auth">
-        <div id="meBox" class="hidden">
-          <span id="meName"></span>
-          <button id="logoutBtn" class="btn secondary">Se déconnecter</button>
+<body class="h-full text-slate-100 selection:bg-primary/20">
+  <!-- App container -->
+  <div class="min-h-screen max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
+    <!-- Header -->
+    <header class="mb-6 md:mb-10 flex flex-col md:flex-row md:items-end gap-4">
+      <div class="flex-1">
+        <h1 class="text-2xl md:text-3xl font-semibold tracking-tight flex items-center gap-3">
+          <span class="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/20">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 6v12m6-6H6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          CoachBot — Programme 15 jours
+        </h1>
+        <p class="mt-2 text-slate-400 text-sm md:text-base">
+          Sélectionne un jour et affiche le plan. Écris ensuite ton message au coach.
+        </p>
+      </div>
+
+      <!-- Jour + actions -->
+      <div class="flex items-center gap-2 md:gap-3">
+        <button id="prevDay" class="btn-secondary" title="Jour précédent">
+          <i data-lucide="chevron-left" class="h-4 w-4"></i>
+        </button>
+
+        <div class="relative">
+          <select id="daySelect" class="input-select pr-9">
+            <!-- options injectées en JS -->
+          </select>
+          <i data-lucide="chevron-down" class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none"></i>
         </div>
-        <button id="openAuth" class="btn">Se connecter</button>
+
+        <button id="nextDay" class="btn-secondary" title="Jour suivant">
+          <i data-lucide="chevron-right" class="h-4 w-4"></i>
+        </button>
+
+        <button id="showPlan" class="btn-primary">Afficher</button>
+
+        <div class="relative">
+          <button id="toolsBtn" class="btn-secondary flex items-center gap-2">
+            <i data-lucide="hammer" class="h-4 w-4"></i>
+            Outil utile
+          </button>
+          <!-- menu simple -->
+          <div id="toolsMenu" class="hidden absolute right-0 mt-2 w-64 rounded-xl bg-slate-900/95 ring-1 ring-white/10 backdrop-blur p-2 z-20">
+            <button data-tool="kiss" class="menu-item">KISS — Keep/Improve/Start/Stop</button>
+            <button data-tool="responsibility" class="menu-item">Échelle de responsabilité</button>
+            <button data-tool="cnv" class="menu-item">CNV — Message clair</button>
+          </div>
+        </div>
       </div>
     </header>
 
-    <main class="layout">
-      <aside class="sidebar">
-        <h3>Programme 15 jours</h3>
-        <select id="daySelect"></select>
-        <p class="muted" id="planText"></p>
-        <div class="metaBox">
-          <label>Ton prénom</label>
-          <input id="nameInput" placeholder="Ex: Karim"/>
-          <label>DISC (auto-déduit si vide)</label>
-          <input id="discInput" placeholder="D / I / S / C"/>
-          <button id="saveMeta" class="btn small">Sauvegarder</button>
+    <!-- Tips -->
+    <section class="grid md:grid-cols-2 gap-4 md:gap-6 mb-6">
+      <div class="card">
+        <div class="card-title">Conseil</div>
+        <ul class="text-sm text-slate-300 leading-relaxed list-disc pl-5 space-y-1">
+          <li>« Exporter » télécharge ton journal du jour en .txt</li>
+          <li>Les discussions sont séparées par jour</li>
+        </ul>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button id="exportBtn" class="btn-secondary">Exporter</button>
+          <button id="clearBtn" class="btn-secondary">Effacer écran</button>
         </div>
-      </aside>
+      </div>
 
-      <section class="chat">
-        <div id="history" class="history"></div>
-        <form id="composer" class="composer">
-          <input id="msg" placeholder="Sélectionne un jour, puis écris ton message au coach…"/>
-          <button class="btn">Envoyer</button>
+      <div class="card">
+        <div class="card-title">Plan du jour</div>
+        <p id="dayPlan" class="text-slate-200 text-sm md:text-base leading-relaxed"></p>
+      </div>
+    </section>
+
+    <!-- Chat -->
+    <section class="card p-0 overflow-hidden">
+      <div id="chat" class="p-4 md:p-6 h-[50vh] md:h-[60vh] overflow-y-auto space-y-3 bg-gradient-to-b from-slate-900/40 to-slate-900/10">
+        <!-- messages -->
+      </div>
+
+      <div class="border-t border-white/10 p-4 md:p-6">
+        <form id="form" class="space-y-3">
+          <textarea id="input" rows="3" class="input-textarea" placeholder="Écris ton message… (Ex: « je m’appelle Samir » pour enregistrer ton prénom)"></textarea>
+
+          <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-slate-400">Fournisseur:</span>
+              <select id="provider" class="input-select">
+                <option value="anthropic" selected>Claude (Anthropic)</option>
+                <!-- OpenAI disponible si tu réactives ton quota -->
+                <!-- <option value="openai">OpenAI</option> -->
+              </select>
+            </div>
+
+            <div class="flex-1"></div>
+
+            <button type="submit" id="sendBtn" class="btn-primary">Envoyer au coach</button>
+            <button type="button" id="saveNoteBtn" class="btn-secondary">Sauvegarder la réponse</button>
+          </div>
+
+          <p class="text-[11px] text-slate-400 pt-1">
+            Streaming activé avec Claude. Données enregistrées par jour côté serveur.
+          </p>
         </form>
-      </section>
-    </main>
+      </div>
+    </section>
   </div>
 
-  <!-- Modale auth -->
-  <dialog id="authDialog">
-    <form method="dialog" class="authForm" id="authForm">
-      <h3>Connexion / Inscription</h3>
-      <label>Email</label>
-      <input id="authEmail" type="email" required placeholder="toi@exemple.com"/>
-      <label>Mot de passe</label>
-      <input id="authPass" type="password" required placeholder="******"/>
-      <label>Prénom (si inscription)</label>
-      <input id="authName" placeholder="Ex: Karim"/>
-      <div class="row">
-        <button id="loginBtn" class="btn">Connexion</button>
-        <button id="registerBtn" class="btn secondary" type="button">Inscription</button>
-        <button class="btn ghost" value="cancel">Fermer</button>
-      </div>
-      <p id="authError" class="error"></p>
-    </form>
-  </dialog>
-
-  <script src="/script.js"></script>
+  <!-- App JS -->
+  <script type="module" src="/app.js"></script>
+  <script>lucide.createIcons();</script>
 </body>
 </html>
