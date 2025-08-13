@@ -1,41 +1,29 @@
-:root {
-  --bg: #0f172a;
-  --panel: #111827;
-  --muted: #9ca3af;
-  --text: #e5e7eb;
-  --accent: #22c55e;
-  --accent-2: #ef4444;
-  --border: #1f2937;
+/* Petits utilitaires au-dessus de Tailwind */
+
+.card {
+  @apply rounded-2xl bg-slate-900/60 ring-1 ring-white/10 p-4 md:p-6;
+}
+.card-title {
+  @apply text-sm font-medium text-slate-300 mb-2;
 }
 
-* { box-sizing: border-box; }
-html,body { height:100%; }
-body {
-  margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial;
-  background: var(--bg); color: var(--text);
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-slate-900 font-medium shadow
+         hover:bg-cyan-300 transition active:scale-[.98];
+}
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800/80 ring-1 ring-white/10 px-3.5 py-2 text-slate-200
+         hover:bg-slate-800 transition active:scale-[.98];
 }
 
-.app { display:flex; flex-direction:column; height:100vh; }
-.topbar {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:12px 16px; border-bottom:1px solid var(--border);
-  background:#0b1220;
+.input-select {
+  @apply rounded-xl bg-slate-900/70 ring-1 ring-white/10 px-3.5 py-2 text-slate-200 focus:outline-none focus:ring-primary/60;
 }
-.brand { font-weight:700; letter-spacing: .5px; }
-.auth { display:flex; gap:12px; align-items:center; }
-.hidden { display:none !important; }
+.input-textarea {
+  @apply w-full min-h-[88px] rounded-xl bg-slate-900/70 ring-1 ring-white/10 p-3.5 text-slate-200
+         placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/60;
+}
 
-.btn {
-  background: var(--accent); color:#07110a; border:none; padding:8px 12px;
-  border-radius:8px; font-weight:600; cursor:pointer;
+.menu-item {
+  @apply w-full text-left px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800;
 }
-.btn.secondary { background:#334155; color:#e2e8f0; }
-.btn.ghost { background:transparent; color:#cbd5e1; border:1px solid #334155; }
-.btn.small { padding:6px 10px; font-size:14px; }
-
-.layout { display:grid; grid-template-columns: 320px 1fr; gap:0; flex:1; }
-.sidebar {
-  border-right:1px solid var(--border);
-  padding:16px; background:#0c1322;
-}
-.sidebar h3 { margin-top:0; }
