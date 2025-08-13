@@ -18,7 +18,7 @@
   .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--fg)}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:16px}
   .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  select,textarea{width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--fg)}
+  select,textarea,input{width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--fg)}
   textarea{min-height:110px; resize:vertical}
   .pill{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--muted)}
   .chat{display:flex;flex-direction:column;gap:10px;max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
@@ -67,7 +67,7 @@
         <option value="13">Jour 13</option><option value="14">Jour 14</option><option value="15">Jour 15</option>
       </select>
       <div class="pill muted" id="plan">Sélectionne un jour.</div>
-      <div class="pill">Fournisseur : Claude</div>
+      <div class="pill">Fournisseur : Claude</div>
     </div>
   </div>
 
@@ -84,7 +84,7 @@
 
 <!-- Auth Modal -->
 <div id="authModal" class="modal hidden" aria-modal="true" role="dialog">
-  <div class="card" onclick="event.stopPropagation()">
+  <div class="card" id="authCard">
     <div class="modal-header">
       <strong>Connexion</strong>
       <button id="closeAuth" class="btn ghost">Fermer</button>
@@ -99,7 +99,7 @@
       <input id="email" placeholder="Email" type="email" autocomplete="username" />
       <div class="pwd">
         <input id="password" placeholder="Mot de passe" type="password" autocomplete="current-password" />
-        <span id="togglePwd" class="toggle-eye">👁️</span>
+        <span id="togglePwd" class="toggle-eye" title="Afficher/masquer">👁️</span>
       </div>
       <input id="name" placeholder="Prénom (pour inscription)" />
       <div class="row" style="gap:8px">
@@ -119,7 +119,7 @@ const $ = s=>document.querySelector(s);
 const chatEl=$("#chat"), msgEl=$("#msg"), dayEl=$("#day");
 const statusEl=$("#status"), planEl=$("#plan"), metaEl=$("#meta");
 const whoEl=$("#who"), openAuth=$("#openAuth"), logoutBtn=$("#logout"), adminBtn=$("#adminBtn");
-const authModal=$("#authModal"), authErr=$("#authErr"), nameEl=$("#name");
+const authModal=$("#authModal"), authCard=$("#authCard"), authErr=$("#authErr"), nameEl=$("#name");
 const doLogin=$("#doLogin"), doRegister=$("#doRegister");
 const tabUser=$("#tabUser"), tabAdmin=$("#tabAdmin");
 const toastEl=$("#toast");
@@ -160,14 +160,20 @@ tabAdmin.onclick=()=>selectMode("admin");
 
 openAuth.onclick=()=>{show(authModal);authErr.textContent="";$("#email").focus()}
 $("#closeAuth").onclick=()=>hide(authModal);
-authModal.addEventListener("click",()=>hide(authModal)); // clic hors carte
+
+// fermer au clic hors carte
+authModal.addEventListener("click",(e)=>{ if(e.target===authModal) hide(authModal); });
+// empêcher la propagation dans la carte
+authCard.addEventListener("click",(e)=>e.stopPropagation());
+// fermer avec Échap
+window.addEventListener("keydown",(e)=>{ if(!authModal.classList.contains("hidden") && e.key==="Escape") hide(authModal); });
 
 // œil mot de passe
 $("#togglePwd").onclick=()=>{
   const p=$("#password"); p.type = p.type==="password" ? "text" : "password";
 };
 
-// Entrée pour soumettre
+// Entrée = bouton Connexion
 authModal.addEventListener("keydown",(e)=>{
   if(e.key==="Enter"){ doLogin.click(); }
 });
@@ -191,18 +197,16 @@ async function doLoginCall(){
   if(!email||!password){authErr.textContent="Email et mot de passe requis.";return}
   try{
     const r=await api("/api/auth/login",{method:"POST",body:JSON.stringify({email,password})});
-    const d=await r.json();
-    if(!r.ok){authErr.textContent=d.error||"Erreur connexion";return}
+    const d=await r.json().catch(()=>null);
+    if(!r.ok || !d){authErr.textContent=(d&&d.error)||"Erreur connexion";return}
 
-    // Si l’onglet "Admin" est actif, vérifie le rôle
+    // Si onglet Admin, vérifier le rôle
     if(authMode==="admin" && d.user?.role!=="admin"){
-      authErr.textContent="Ce compte n’est pas admin.";
-      return;
+      authErr.textContent="Ce compte n’est pas admin."; return;
     }
 
-    setToken(d.token); updateAuthUI(d.user); hide(authModal);
-    toast("✅ Connexion réussie");
-    statusEl.textContent="Connecté";
+    setToken(d.token); updateAuthUI(d.user);
+    hide(authModal); toast("✅ Connexion réussie"); statusEl.textContent="Connecté";
     await hydrate();
   }catch{authErr.textContent="Erreur réseau"}
 }
@@ -212,15 +216,17 @@ async function doRegisterCall(){
   if(!email||!password){authErr.textContent="Email et mot de passe requis.";return}
   try{
     const r=await api("/api/auth/register",{method:"POST",body:JSON.stringify({email,password,name})});
-    const d=await r.json();
-    if(!r.ok){authErr.textContent=d.error||"Erreur inscription";return}
-    setToken(d.token); updateAuthUI(d.user); hide(authModal);
-    toast("✅ Inscrit et connecté"); statusEl.textContent="Connecté";
+    const d=await r.json().catch(()=>null);
+    if(!r.ok || !d){authErr.textContent=(d&&d.error)||"Erreur inscription";return}
+    setToken(d.token); updateAuthUI(d.user);
+    hide(authModal); toast("✅ Inscrit et connecté"); statusEl.textContent="Connecté";
     await hydrate();
   }catch{authErr.textContent="Erreur réseau"}
 }
 doLogin.onclick=doLoginCall; doRegister.onclick=doRegisterCall;
-adminBtn.onclick=()=>location.href="/admin";
+
+// bouton Admin → /admin (n’apparait que si role admin)
+adminBtn.onclick=()=>{ location.href="/admin"; };
 
 /* ---------- Me + Journal ---------- */
 async function hydrate(){
