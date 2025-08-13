@@ -1,4 +1,4 @@
-// server.js — CoachBot (complet)
+// server.js — CoachBot (JSON storage + health endpoints)
 // ES modules
 import express from "express";
 import cors from "cors";
@@ -18,9 +18,9 @@ app.use(bodyParser.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DB_PATH    = process.env.DB_PATH    || "/data/journal.json"; // discussions par jour
-const META_PATH  = process.env.META_PATH  || "/data/meta.json";    // prénom + DISC
-const PROMPT_PATH= process.env.PROMPT_PATH|| path.join(__dirname, "prompt.txt");
+const DB_PATH     = process.env.DB_PATH     || "/data/journal.json"; // discussions par jour
+const META_PATH   = process.env.META_PATH   || "/data/meta.json";     // prénom + DISC
+const PROMPT_PATH = process.env.PROMPT_PATH || path.join(__dirname, "prompt.txt");
 
 // ---------------- Utils: files & JSON ----------------
 function ensureDir(p) { fs.mkdirSync(path.dirname(p), { recursive: true }); }
@@ -165,13 +165,12 @@ function makeUserPrompt(day, message) {
   return `Plan du jour (${day}) : ${plan}\n\nMessage de l'utilisateur : ${message}`;
 }
 
-// ---------------- Chat non-stream (diagnostic / fallback) ----------------
+// ---------------- Chat non-stream ----------------
 app.post("/api/chat", async (req, res) => {
   try {
     const { message, day = 1, provider = "anthropic" } = req.body ?? {};
     const meta = loadMeta();
 
-    // Extraire prénom / DISC si inconnus
     if (!meta.name) {
       const n = maybeExtractName(message);
       if (n && n.length >= 2) { meta.name = n; saveMeta(meta); }
@@ -230,7 +229,6 @@ app.post("/api/chat/stream", async (req, res) => {
   const { message, day = 1, provider = "anthropic" } = req.body ?? {};
   const meta = loadMeta();
 
-  // Heuristiques
   if (!meta.name) {
     const n = maybeExtractName(message);
     if (n && n.length >= 2) { meta.name = n; saveMeta(meta); }
@@ -308,6 +306,32 @@ app.post("/api/chat/stream", async (req, res) => {
     console.error(e);
     send({ error: "Erreur serveur" }); return end();
   }
+});
+
+// ---------------- Health / Ready / Version ----------------
+app.get("/healthz", (_req, res) => {
+  // check fichiers essentiels
+  const dbExists   = fs.existsSync(DB_PATH);
+  const metaExists = fs.existsSync(META_PATH);
+  res.status(200).json({
+    ok: true,
+    db: dbExists ? "ok" : "missing",
+    meta: metaExists ? "ok" : "missing"
+  });
+});
+
+app.get("/readyz", (_req, res) => {
+  // simple readiness (tu peux enrichir plus tard)
+  res.status(200).json({ ready: true });
+});
+
+app.get("/version", (_req, res) => {
+  res.json({
+    name: "coachbot",
+    env: process.env.NODE_ENV || "production",
+    model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022",
+    time: new Date().toISOString()
+  });
 });
 
 // ---------------- Start ----------------
