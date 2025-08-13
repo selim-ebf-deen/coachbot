@@ -1,27 +1,30 @@
-// main.js — UI app + auth + chat streaming (avec Enter/Shift+Enter + auto-resize)
+// main.js — UI app + auth + chat streaming (Enter/Shift+Enter + auto-resize + bulles courtes)
 
 const $ = sel => document.querySelector(sel);
-const chat = $("#chat");
-const daySel = $("#daySel");
+
+const chat        = $("#chat");
+const daySel      = $("#daySel");
 const showPlanBtn = $("#showPlan");
-const plan = $("#plan");
-const msg = $("#msg");
-const sendBtn = $("#sendBtn");
-const who = $("#who");
-const loginBtn = $("#loginBtn");
-const logoutBtn = $("#logoutBtn");
-const adminBtn = $("#adminBtn");
+const plan        = $("#plan");
+const msg         = $("#msg");
+const sendBtn     = $("#sendBtn");
+
+const who         = $("#who");
+const loginBtn    = $("#loginBtn");
+const logoutBtn   = $("#logoutBtn");
+const adminBtn    = $("#adminBtn");
 const providerSel = $("#providerSel");
-const scrim = $("#scrim");
-const closeModal = $("#closeModal");
-const doLogin = $("#doLogin");
-const doRegister = $("#doRegister");
-const email = $("#email");
-const pass = $("#pass");
-const regName = $("#regName");
-const toggleEye = $("#toggleEye");
-const loginErr = $("#loginErr");
-const loginInfo = $("#loginInfo");
+
+const scrim       = $("#scrim");
+const closeModal  = $("#closeModal");
+const doLogin     = $("#doLogin");
+const doRegister  = $("#doRegister");
+const email       = $("#email");
+const pass        = $("#pass");
+const regName     = $("#regName");
+const toggleEye   = $("#toggleEye");
+const loginErr    = $("#loginErr");
+const loginInfo   = $("#loginInfo");
 
 const TOKEN_KEY = "coachbot.token";
 
@@ -31,11 +34,10 @@ function authHeaders(h={}){ const t = token(); if(t) h.Authorization = "Bearer "
 
 async function api(path, opt={}){
   const headers = authHeaders({ "Content-Type":"application/json", ...(opt.headers||{}) });
-  const r = await fetch(path, { ...opt, headers });
-  return r;
+  return fetch(path, { ...opt, headers });
 }
 
-// UI helpers
+// ---------- UI helpers ----------
 function bubble(role, text){
   const div = document.createElement("div");
   div.className = "bubble " + (role === "user" ? "me" : "ai");
@@ -43,6 +45,31 @@ function bubble(role, text){
   div.innerHTML = dot + (text || "");
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
+}
+
+/* Émet plusieurs bulles à partir d’un texte :
+   - coupe aux fins de phrase
+   - limite la taille de bulle pour l’effet “conversation”
+*/
+function emitBubbles(role, text) {
+  if (!text) return;
+  // On nettoie et on coupe par phrases
+  const parts = text
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/(?<=[.!?…])\s+/g);
+
+  const MAX_LEN = 180; // longueur max par bulle
+  for (let p of parts) {
+    if (!p) continue;
+    // Si une phrase est trop longue, on “hard-wrap” en plusieurs bulles
+    while (p.length > MAX_LEN) {
+      const cut = p.lastIndexOf(" ", MAX_LEN) > 60 ? p.lastIndexOf(" ", MAX_LEN) : MAX_LEN;
+      bubble(role, p.slice(0, cut).trim());
+      p = p.slice(cut).trim();
+    }
+    if (p) bubble(role, p);
+  }
 }
 
 function setLogged(user){
@@ -59,15 +86,19 @@ function setLogged(user){
   }
 }
 
-function showLogin(open=true){ scrim.style.display = open ? "flex" : "none"; if(open){ loginErr.textContent=""; loginInfo.style.display="none"; } }
+function showLogin(open=true){
+  scrim.style.display = open ? "flex" : "none";
+  if(open){ loginErr.textContent=""; loginInfo.style.display="none"; }
+}
 
-// Build day select
+// ---------- Plan J1→J15 ----------
 for(let d=1; d<=15; d++){
   const o = document.createElement("option");
   o.value = d; o.textContent = "Jour " + d;
   daySel.appendChild(o);
 }
 daySel.value = "1";
+
 const plans = {
   1:"Clarification des intentions : défi prioritaire, pourquoi c’est important, et ce que ‘réussir’ signifie.",
   2:"Diagnostic : 3 leviers + 3 obstacles.",
@@ -90,7 +121,6 @@ renderPlan();
 
 // ---------- Auto-resize du textarea ----------
 function autoResize(){
-  // Respecte min/max-height CSS
   msg.style.height = 'auto';
   const max = parseInt(getComputedStyle(msg).maxHeight || '0', 10) || 9999;
   msg.style.height = Math.min(msg.scrollHeight, max) + 'px';
@@ -107,11 +137,22 @@ msg.addEventListener('keydown', (e)=>{
 
 // ---------- Events UI ----------
 showPlanBtn.addEventListener("click", renderPlan);
+daySel.addEventListener("change", loadJournal);
+
 loginBtn.addEventListener("click", ()=>showLogin(true));
 closeModal.addEventListener("click", ()=>showLogin(false));
-logoutBtn.addEventListener("click", ()=>{ setToken(null); setLogged(null); chat.innerHTML=""; bubble("ai","Déconnecté."); });
-toggleEye.addEventListener("click", ()=>{ pass.type = pass.type === "password" ? "text":"password"; });
+logoutBtn.addEventListener("click", ()=>{
+  setToken(null);
+  setLogged(null);
+  chat.innerHTML="";
+  bubble("ai","Déconnecté.");
+});
 
+toggleEye.addEventListener("click", ()=>{
+  pass.type = pass.type === "password" ? "text":"password";
+});
+
+// ---------- Auth ----------
 doLogin.addEventListener("click", async ()=>{
   loginErr.textContent = "";
   try{
@@ -122,7 +163,7 @@ doLogin.addEventListener("click", async ()=>{
     if(!r.ok){ loginErr.textContent="Identifiants invalides."; return; }
     const d = await r.json();
     setToken(d.token); setLogged(d.user);
-    loginInfo.style.display=""; // ✅
+    loginInfo.style.display="";
     setTimeout(()=> showLogin(false), 600);
     await loadJournal();
   }catch{ loginErr.textContent="Erreur réseau."; }
@@ -142,13 +183,13 @@ doRegister.addEventListener("click", async ()=>{
     }
     const d = await r.json();
     setToken(d.token); setLogged(d.user);
-    loginInfo.style.display=""; // ✅
+    loginInfo.style.display="";
     setTimeout(()=> showLogin(false), 600);
     await loadJournal();
   }catch{ loginErr.textContent="Erreur réseau."; }
 });
 
-// Charge /api/me si déjà loggé
+// ---------- Boot : /api/me ----------
 (async function boot(){
   try{
     const r = await api("/api/me");
@@ -162,66 +203,84 @@ doRegister.addEventListener("click", async ()=>{
   }catch{ setLogged(null); }
 })();
 
-// Charger le journal du jour
+// ---------- Charger le journal du jour ----------
 async function loadJournal(){
   chat.innerHTML = "";
-  bubble("ai", "Conversation chargée (jour " + daySel.value + ").");
+  emitBubbles("ai", "Conversation chargée (jour " + daySel.value + ").");
   try{
     const r = await api("/api/journal?day="+daySel.value);
-    if(!r.ok){ bubble("ai","Erreur : impossible de charger le journal."); return; }
+    if(!r.ok){ emitBubbles("ai","Erreur : impossible de charger le journal."); return; }
     const list = await r.json();
     for (const m of list){
-      bubble(m.role === "user" ? "user" : "ai", m.message);
+      emitBubbles(m.role === "user" ? "user" : "ai", m.message);
     }
-  }catch{ bubble("ai","Erreur de chargement."); }
+  }catch{ emitBubbles("ai","Erreur de chargement."); }
 }
-daySel.addEventListener("change", loadJournal);
 
-// ---------- Envoi message (bouton + streaming) ----------
+// ---------- Envoi message (bouton) ----------
 sendBtn.addEventListener("click", sendMessage);
 
+// ---------- Streaming + bulles courtes ----------
 async function sendMessage(){
   const text = (msg.value||"").trim();
   if(!text) return;
 
-  bubble("user", text);
+  emitBubbles("user", text);
   msg.value = "";
-  autoResize(); // remet la hauteur au propre après envoi
-
-  const controller = new AbortController();
+  autoResize();
 
   try{
     const r = await api("/api/chat/stream", {
       method:"POST",
-      body: JSON.stringify({ message:text, day:Number(daySel.value), provider: providerSel.value }),
-      signal: controller.signal
+      body: JSON.stringify({ message:text, day:Number(daySel.value), provider: providerSel?.value || "anthropic" })
     });
-    if(!r.ok){ bubble("ai","Erreur côté IA."); return; }
+    if(!r.ok){ emitBubbles("ai","Erreur côté IA."); return; }
 
-    const reader = r.body.getReader();
+    const reader  = r.body.getReader();
     const decoder = new TextDecoder();
-    let aiDiv = document.createElement("div");
-    aiDiv.className = "bubble ai";
-    aiDiv.innerHTML = `<span class="dot ai"></span><span id="aitxt"></span>`;
-    chat.appendChild(aiDiv);
-    const target = aiDiv.querySelector("#aitxt");
+    let buffer = "";
+
+    const flush = (force=false) => {
+      // coupe par fins de phrase
+      const parts = buffer.split(/(?<=[.!?…])\s+/g);
+      // garde la dernière partie (potentiellement incomplète) en tampon
+      buffer = parts.pop() || "";
+      // émet le reste
+      for (const p of parts) {
+        const s = (p||"").trim();
+        if (s) emitBubbles("ai", s);
+      }
+      // si force=true, on vide tout
+      if (force && buffer.trim()) {
+        emitBubbles("ai", buffer.trim());
+        buffer = "";
+      }
+    };
 
     while(true){
       const { done, value } = await reader.read();
       if(done) break;
       const chunk = decoder.decode(value, { stream:true });
+
       for(const line of chunk.split("\n")){
         if(!line.startsWith("data:")) continue;
         const payload = line.slice(5).trim();
         if(payload === "[DONE]") break;
         try{
           const evt = JSON.parse(payload);
-          if(evt.text) { target.textContent += evt.text; chat.scrollTop = chat.scrollHeight; }
-          if(evt.error){ target.textContent = "[Erreur] " + evt.error; }
-        }catch{}
+          if(evt.text) {
+            buffer += evt.text;
+            // petit flush sur ponctuation ou quand le buffer devient long
+            if (/[.!?…]\s$/.test(buffer) || buffer.length > 220) flush(false);
+          }
+          if(evt.error){ emitBubbles("ai", "[Erreur] " + evt.error); }
+        }catch{ /* ignore */ }
       }
     }
+    // fin de flux → on vide ce qui reste
+    flush(true);
+
   }catch{
-    bubble("ai","Erreur réseau.");
+    emitBubbles("ai","Erreur réseau.");
   }
 }
