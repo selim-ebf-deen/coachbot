@@ -83,27 +83,37 @@
       </div>
 
       <div class="modal-grid">
-        <label>Email
+        <!-- Champs d’authentification. Chaque champ est enveloppé dans un conteneur
+             séparé afin d’éviter que les balises <label> n’engloutissent le pied
+             de page de la modale et ne capturent les clics sur les boutons. -->
+        <div class="modal-field">
+          <label for="email">Email</label>
           <input id="email" class="input" type="email" placeholder="email@domaine.com" autocomplete="username">
-        </label>
+        </div>
 
-        <label>Mot de passe
+        <div class="modal-field">
+          <label for="pass">Mot de passe</label>
           <div style="position:relative">
             <input id="pass" class="input" type="password" placeholder="••••••••" autocomplete="current-password">
+            <!-- Bouton pour afficher/masquer le mot de passe. Utilise type="button" afin
+                 d’éviter un comportement de soumission implicite dans certains navigateurs. -->
             <button id="toggleEye" type="button"
               style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:#5f6368;cursor:pointer">
               👁
             </button>
           </div>
-        </label>
+        </div>
 
-        <label>Prénom (pour inscription)
-          <input id="regName" class="input" type="text" placeholder="Ex : Selim" autocomplete="given-name">
-        </label>
+        <div class="modal-field">
+          <label for="regName">Prénom (pour inscription)</label>
+          <input id="regName" class="input" type="text" placeholder="Ex : Selim" autocomplete="given-name">
+        </div>
 
+        <!-- Actions de la modale. Les boutons sont explicitement de type="button" pour
+             empêcher la soumission par défaut et assurer la réception des clics. -->
         <div class="modal-actions">
-          <button id="doLogin" class="btn btn-primary">Connexion</button>
-          <button id="doRegister" class="btn">Inscription</button>
+          <button id="doLogin" type="button" class="btn btn-primary">Connexion</button>
+          <button id="doRegister" type="button" class="btn">Inscription</button>
           <span id="loginInfo">✅ Connecté.</span>
           <span id="loginErr"></span>
         </div>
