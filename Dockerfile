@@ -7,8 +7,9 @@ RUN npm install --production || npm install --production --no-audit --no-fund
 
 COPY . .
 
-# Ne définissez pas PORT ici : Render fournit sa propre variable
-# Ne spécifiez pas EXPOSE pour un port fixe
-# Votre server.js lit process.env.PORT || 3000
+# Render injecte le port 10000 dans l'environnement pour les services Docker.
+# Node lira cette variable via process.env.PORT dans server.js.
+ENV PORT=10000
+EXPOSE 10000
 
 CMD ["node", "server.js"]
