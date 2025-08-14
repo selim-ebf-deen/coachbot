@@ -3,65 +3,114 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CoachBot</title>
-  <link rel="stylesheet" href="/style.css" />
+  <title>CoachBot — Programme 15 jours</title>
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <div class="container">
-    <div class="topbar">
-      <div class="topbar-left">
-        <div id="who">Non connecté</div>
-        <button id="loginBtn" class="btn btn-secondary">Connexion</button>
-        <button id="logoutBtn" class="btn btn-secondary" style="display:none">Déconnexion</button>
-        <button id="adminBtn" class="btn btn-secondary" style="display:none" onclick="location.href='/admin'">Admin</button>
-      </div>
-      <div class="topbar-right">
-        <select id="daySel" class="input-select"></select>
-        <button id="showPlan" class="btn btn-primary">Afficher</button>
+
+    <!-- Header -->
+    <div class="header">
+      <div class="header-title">CoachBot</div>
+      <div class="header-spacer"></div>
+      <div id="who">Non connecté</div>
+      <div class="header-actions">
+        <!-- Lien Admin : visible seulement si role = admin (géré par main.js via display) -->
+        <a id="adminBtn" href="/admin" class="btn btn-ghost" style="display:none">Admin</a>
+        <button id="logoutBtn" class="btn btn-ghost" style="display:none">Déconnexion</button>
+        <button id="loginBtn" class="btn btn-primary">Connexion</button>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Plan du jour</div>
-      <div id="plan" class="text-sm"></div>
+    <!-- Bloc contrôles + plan -->
+    <div class="card block">
+      <div class="block-header">
+        <div class="block-title">Programme 15 jours</div>
+        <div class="spacer"></div>
+        <!-- Fournisseur (optionnel) -->
+        <div class="chip">Fournisseur :
+          <select id="providerSel" class="select" style="margin-left:8px;width:auto">
+            <option value="claude" selected>Claude</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="block-body">
+        <div class="controls">
+          <select id="daySel" class="select" aria-label="Jour"></select>
+          <button id="showPlan" class="btn btn-ghost">Afficher</button>
+        </div>
+        <div id="plan" class="plan"></div>
+      </div>
     </div>
 
-    <div class="card" style="margin-top:12px;">
-      <div id="chat" style="min-height:40vh;"></div>
-      <div class="composer" style="margin-top:8px;">
-        <div class="composer-row">
-          <textarea id="msg" class="input-textarea" placeholder="Écris ton message… (Entrée = envoyer, Shift+Entrée = retour ligne)"></textarea>
-          <div class="send-wrap">
-            <select id="providerSel" class="input-select">
-              <option value="anthropic">Claude</option>
-            </select>
+    <!-- Bloc chat -->
+    <div class="card block">
+      <div class="block-body">
+        <div class="chat-wrap">
+          <div id="chat"></div>
+
+          <div class="input-row">
+            <textarea
+              id="msg"
+              class="textarea"
+              placeholder="Écris ton message au coach… (Entrée = envoyer, Shift+Entrée = retour)"
+              rows="2"
+            ></textarea>
             <button id="sendBtn" class="btn btn-primary">Envoyer</button>
           </div>
+
+          <div class="helper">
+            Point <b>vert</b> = toi • Point <span class="coach">rouge</span> = coach
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modale Connexion / Inscription -->
+  <div id="scrim">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Connexion</div>
+        <button id="closeModal" class="modal-close" aria-label="Fermer">Fermer ✕</button>
+      </div>
+
+      <div class="tabs">
+        <span class="tab active">Utilisateur</span>
+        <span class="tab">Admin</span> <!-- purement visuel; l'API gère les rôles -->
+      </div>
+
+      <div class="modal-grid">
+        <label>Email
+          <input id="email" class="input" type="email" placeholder="email@domaine.com" autocomplete="username">
+        </label>
+
+        <label>Mot de passe
+          <div style="position:relative">
+            <input id="pass" class="input" type="password" placeholder="••••••••" autocomplete="current-password">
+            <button id="toggleEye" type="button"
+              style="position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:#5f6368;cursor:pointer">
+              👁
+            </button>
+          </div>
+        </label>
+
+        <label>Prénom (pour inscription)
+          <input id="regName" class="input" type="text" placeholder="Ex : Selim" autocomplete="given-name">
+        </label>
+
+        <div class="modal-actions">
+          <button id="doLogin" class="btn btn-primary">Connexion</button>
+          <button id="doRegister" class="btn">Inscription</button>
+          <span id="loginInfo">✅ Connecté.</span>
+          <span id="loginErr"></span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Modale Auth -->
-  <div id="scrim">
-    <div class="modal" style="position:relative;">
-      <button id="closeModal" class="modal-close">✕</button>
-      <h3>Connexion / Inscription</h3>
-      <div class="row"><input id="regName" class="modal input" placeholder="Prénom (optionnel pour inscription)" /></div>
-      <div class="row"><input id="email" class="modal input" placeholder="Email" /></div>
-      <div class="row" style="position:relative;">
-        <input id="pass" class="modal input" type="password" placeholder="Mot de passe" />
-        <button id="toggleEye" class="eye-btn">👁</button>
-      </div>
-      <div class="row" style="display:flex;gap:.5rem;">
-        <button id="doLogin" class="btn btn-primary" style="flex:1;">Se connecter</button>
-        <button id="doRegister" class="btn btn-secondary" style="flex:1;">Créer un compte</button>
-      </div>
-      <div id="loginErr" class="modal help" style="color:#f87171;"></div>
-      <div id="loginInfo" class="badge-ok" style="display:none;">✔ Connecté</div>
-    </div>
-  </div>
-
-  <script src="/main.js"></script>
+  <script src="/main.js" defer></script>
 </body>
 </html>
