@@ -1,227 +1,334 @@
-/* =========================================================
-   COACHBOT — STYLE GLOBAL (Tailwind requis pour @apply)
-   ========================================================= */
+/* ======================================================
+   CoachBot - UI CSS (sans framework)
+   Propre, sobre, responsive
+   ====================================================== */
 
-/* ---- Reset/Body ---- */
-:root {
-  --primary: #22d3ee; /* cyan-400 */
-}
+/* --------- Reset / base --------- */
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-body {
-  @apply bg-slate-950 text-slate-200;
+:root{
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --text: #202124;
+  --muted: #5f6368;
+  --primary: #1a73e8;
+  --primary-600: #1767cf;
+  --primary-700: #145bb8;
+  --ring: rgba(26, 115, 232, .35);
+  --ok: #0f9d58;
+  --danger: #d93025;
+  --border: #e5e7eb;
+  --chip: #eef3fd;
+}
+body{
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  font: 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
 }
 
-/* ---- Layout principal ---- */
-.container {
-  @apply max-w-5xl mx-auto px-4 md:px-6;
-  padding-top: 18px;
-  padding-bottom: 24px;
+/* --------- Layout --------- */
+.container{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
 }
 
-/* ---- Topbar ---- */
-.topbar {
-  @apply flex items-center justify-between mb-4;
-}
-.topbar-left {
-  @apply flex items-center gap-3;
-}
-.topbar-right {
-  @apply flex items-center gap-2;
+.card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
 }
 
-/* Bandeau “Connecté : …” bien aligné */
-#who {
-  @apply inline-flex items-center gap-2 text-slate-300;
-  vertical-align: middle;
-  white-space: nowrap;
-  margin-right: .5rem;
+/* --------- Header --------- */
+.header{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
 }
-#who.is-logged { @apply font-semibold; }
-
-/* ---- Cards / Sections ---- */
-.card {
-  @apply rounded-2xl bg-slate-900/60 ring-1 ring-white/10 p-4 md:p-6;
+.header-title{
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
 }
-.card-title {
-  @apply text-sm font-medium text-slate-300 mb-2;
+.header-spacer{ flex: 1; }
+#who{
+  color: var(--muted);
+  font-size: 14px;
 }
-
-/* =========================================================
-   BOUTONS & INPUTS
-   ========================================================= */
-.btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-medium transition active:scale-[.98];
-}
-.btn-primary {
-  @apply bg-cyan-400 text-slate-900 shadow;
-}
-.btn-secondary {
-  @apply bg-slate-800/80 ring-1 ring-white/10 text-slate-200;
+.header-actions{
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
-/* Texte blanc au survol (lisibilité sur bleu) */
-button:hover,
-.btn:hover,
-.btn-primary:hover,
-.btn-secondary:hover,
-#adminBtn:hover,
-#loginBtn:hover,
-#logoutBtn:hover,
-#showPlan:hover {
-  color: #fff !important;
+/* --------- Controls bar --------- */
+.controls{
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+@media (max-width: 720px){
+  .controls{
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
-/* Select / Textarea */
-.input-select {
-  @apply rounded-xl bg-slate-900/70 ring-1 ring-white/10 px-3.5 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/60;
+/* Selects / inputs (haut) */
+.select, .input, .textarea{
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--text);
+  outline: none;
+  transition: box-shadow .15s ease, border-color .15s ease;
 }
-.input-textarea {
-  @apply w-full min-h-[88px] rounded-xl bg-slate-900/70 ring-1 ring-white/10 p-3.5 text-slate-200
-         placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400/60;
-  max-height: 42vh;         /* limite la hauteur */
-  overflow-y: auto;
-  resize: none;             /* auto-resize géré en JS */
-  line-height: 1.45;
-}
-
-/* Menu items (si menu contextuel) */
-.menu-item {
-  @apply w-full text-left px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800;
+.select:focus, .input:focus, .textarea:focus{
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
-/* Lien admin discret */
-.link {
-  @apply text-cyan-300 hover:text-cyan-200 underline underline-offset-2;
+/* Petit chip “Fournisseur : …” si tu l’utilises */
+.chip{
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: #1f2a44;
+  border: 1px solid #d2e3fc;
+  font-size: 13px;
 }
 
-/* =========================================================
-   ZONE CHAT
-   ========================================================= */
-#chat {
-  @apply overflow-y-auto;
-  max-height: 56vh;         /* scroll interne maîtrisé */
-  padding-right: 2px;       /* évite chevauchement scrollbar */
+/* --------- Boutons --------- */
+.btn{
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background .15s, color .15s, transform .05s;
+}
+.btn:active{ transform: scale(.98); }
+.btn:hover{ background: #f3f4f6; }
+
+.btn-primary{
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.btn-primary:hover{
+  background: var(--primary-600);
+  color: #fff;
+}
+.btn-primary:active{ background: var(--primary-700); }
+
+/* important pour tes demandes : texte blanc au survol */
+.btn-ghost{
+  background: #eef2ff;
+  color: var(--primary);
+  border-color: #dbe2ff;
+}
+.btn-ghost:hover{
+  background: var(--primary);
+  color: #fff; /* ✅ texte blanc au hover */
+}
+
+/* --------- Plan du jour --------- */
+.plan{
+  padding: 14px 16px;
+  border-top: 1px dashed var(--border);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* --------- Zone chat --------- */
+.chat-wrap{
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  height: min(64vh, 560px);
+  overflow: hidden;
+}
+#chat{
+  overflow: auto;
+  padding-right: 6px; /* marge pour scroll */
 }
 
 /* Bulles */
-.bubble {
-  @apply max-w-[82ch] w-fit rounded-xl px-4 py-3 mb-3 leading-relaxed text-[15px];
+.bubble{
+  max-width: 80%;
+  padding: 10px 12px 10px 14px;
+  border-radius: 12px;
+  position: relative;
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  line-height: 1.45;
   word-wrap: break-word;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;     /* respecte sauts de ligne */
+  white-space: pre-wrap;
 }
-.bubble.me {
-  @apply bg-emerald-900/40 text-emerald-50 ring-1 ring-emerald-400/20 ml-auto;
+.bubble.me{
+  margin-left: auto;
+  background: #eaf5ee;
+  border-color: #d1ead8;
 }
-.bubble.ai {
-  @apply bg-rose-900/30 text-rose-50 ring-1 ring-rose-400/20;
+.bubble.ai{
+  margin-right: auto;
+  background: #fde8e6;
+  border-color: #f3c7c2;
 }
-.dot {
-  @apply inline-block w-2.5 h-2.5 rounded-full mr-2 align-[2px];
+.dot{
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
 }
-.dot.me { @apply bg-emerald-400; }  /* user = vert */
-.dot.ai { @apply bg-rose-400; }     /* coach = rouge */
+.dot.me{ background: var(--ok); }       /* ✅ vert = utilisateur */
+.dot.ai{ background: var(--danger); }   /* ✅ rouge = coach */
 
-/* =========================================================
-   COMPOSER (zone message + boutons)
-   ========================================================= */
-.composer {
-  @apply flex flex-col gap-2;
-}
-.composer-row {
-  @apply flex items-end gap-2;
-}
-.composer textarea#msg {
-  @apply flex-1 input-textarea;
-}
-.composer .send-wrap {
-  @apply shrink-0 flex items-center gap-2;
-}
-.provider {
-  @apply text-xs text-slate-400;
+.system{
+  background: #fff4e5;
+  border-color: #ffe1b6;
+  color: #7a4e00;
 }
 
-/* =========================================================
-   PANNEAU JOUR / PLAN
-   ========================================================= */
-.plan-row {
-  @apply flex items-center gap-2;
+/* --------- Zone de saisie --------- */
+.input-row{
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid var(--border);
+  align-items: end;
 }
-#plan {
-  @apply text-sm text-slate-300;
-}
-
-/* =========================================================
-   MODALE AUTH
-   ========================================================= */
-#scrim {
-  @apply fixed inset-0 bg-black/50 hidden items-center justify-center z-50;
-}
-.modal {
-  @apply w-[92vw] max-w-[480px] rounded-2xl bg-slate-900 ring-1 ring-white/10 p-4 md:p-6 text-slate-200;
-}
-.modal h3 { @apply text-base font-semibold mb-3; }
-.modal .tabs { @apply flex gap-2 mb-3; }
-.modal .tab {
-  @apply flex-1 text-center py-2 rounded-lg ring-1 ring-white/10 cursor-pointer;
-}
-.modal .tab.active { @apply bg-cyan-400 text-slate-900 font-medium; }
-.modal .row { @apply mb-3; }
-.modal .input {
-  @apply w-full rounded-xl bg-slate-900/70 ring-1 ring-white/10 px-3.5 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400/60;
-}
-.modal .help { @apply text-xs text-slate-400; }
-
-/* Badge confirmation (connexion OK) */
-.badge-ok {
-  @apply mt-2 inline-flex items-center gap-2 rounded-lg bg-emerald-600/20 text-emerald-200 px-2.5 py-1 text-sm;
+#msg{
+  resize: none;           /* géré en JS (auto-resize) */
+  max-height: 180px;      /* sécurité anti-débordement */
+  min-height: 44px;
 }
 
-/* Bouton œil mot de passe */
-.eye-btn {
-  @apply absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200;
+/* info sous le champ */
+.helper{
+  padding: 0 14px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.helper b{ color: #1f7a1f; }
+.helper .coach{ color: #9b1c14; }
+
+/* --------- Modale (Login / Register) --------- */
+#scrim{
+  position: fixed; inset: 0;
+  display: none;          /* scrim.show = flex */
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,.25);
+  z-index: 50;
+}
+.modal{
+  width: min(640px, 92vw);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 10px 36px rgba(0,0,0,.16);
+  padding: 16px;
+}
+.modal-header{
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.modal-title{ font-weight: 600; }
+.modal-close{
+  border: none; background: transparent; cursor: pointer; color: var(--muted);
+}
+.tabs{
+  display: inline-flex; gap: 8px; margin: 10px 0 12px;
+}
+.tab{
+  padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border);
+  background: #fff; color: var(--muted); cursor: default;
+}
+.tab.active{
+  background: var(--primary); color: #fff; border-color: var(--primary);
+}
+.modal-grid{
+  display: grid; gap: 10px;
+}
+.modal-actions{
+  display: flex; gap: 10px; align-items: center; margin-top: 6px;
+}
+#loginErr{ color: var(--danger); font-size: 13px; }
+#loginInfo{
+  color: #1f7a1f; font-size: 13px; display: none;
 }
 
-/* Fermeture modale */
-.modal-close {
-  @apply absolute right-3 top-3 text-slate-400 hover:text-slate-200;
+/* --------- Utilitaires --------- */
+.mt-12{ margin-top: 12px; }
+.mt-16{ margin-top: 16px; }
+.mb-8{ margin-bottom: 8px; }
+.center{ display: flex; justify-content: center; align-items: center; }
+
+/* --------- Cartes principales --------- */
+.block{
+  margin-bottom: 16px;
+  padding: 0;
+}
+.block .block-body{ padding: 0; }
+.block .block-inner{ padding: 12px; }
+
+/* Cartes : en‑tête (titre + actions à droite) */
+.block-header{
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.block-title{ font-weight: 600; }
+.block-header .spacer{ flex: 1; }
+
+/* “Connecté : Selim” bien aligné à droite */
+.header .header-spacer + #who{ margin-right: 8px; }
+
+/* --------- Lien Admin dans header --------- */
+.badge-admin{
+  padding: 6px 10px;
+  background: var(--chip);
+  border: 1px solid #d2e3fc;
+  color: #1f2a44;
+  border-radius: 999px;
+  font-size: 13px;
 }
 
-/* =========================================================
-   TABLEAU ADMIN (si page admin.html)
-   ========================================================= */
-.table {
-  @apply w-full border-collapse text-sm;
+/* --------- Tables (si tu en as sur /admin) --------- */
+.table{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
 }
-.table th, .table td {
-  @apply border-b border-slate-800 px-3 py-2 text-left;
+.table th, .table td{
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
 }
-.table th { @apply text-slate-400 font-medium; }
-
-/* =========================================================
-   RESPONSIVE
-   ========================================================= */
-@media (max-width: 640px) {
-  #chat { max-height: 50vh; }
-  .bubble { @apply text-[14px]; }
-  .composer-row { @apply flex-col items-stretch; }
-  .send-wrap { @apply justify-end; }
+.table th{ color: var(--muted); font-weight: 600; }
+.table .badge{
+  display: inline-block; padding: 3px 8px; border-radius: 999px;
+  background: #eef2ff; color: #2c3e7a; border: 1px solid #dbe2ff;
 }
 
-/* =========================================================
-   ACCENTS & DÉTAILS
-   ========================================================= */
-/* Forcer le blanc au survol des principaux boutons si conflits de cascade */
-#adminBtn:hover, #loginBtn:hover, #logoutBtn:hover, #showPlan:hover {
-  color: #fff !important;
-}
+/* --------- Petits états --------- */
+.muted{ color: var(--muted); }
+.ok{ color: var(--ok); }
+.err{ color: var(--danger); }
 
-/* Petite animation subtile au hover des boutons primaires */
-.btn-primary { transition: transform .06s ease, background-color .18s ease, color .18s ease; }
-.btn-primary:hover { transform: translateY(-1px); }
-
-/* Liens discrets */
-a { @apply text-cyan-300 hover:text-cyan-200; text-decoration: none; }
+/* --------- Scrollbars (optionnel) --------- */
+#chat::-webkit-scrollbar{ width: 10px; }
+#chat::-webkit-scrollbar-thumb{ background: #d7dbe1; border-radius: 8px; }
+#chat::-webkit-scrollbar-track{ background: transparent; }
