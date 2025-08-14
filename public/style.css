@@ -262,8 +262,25 @@ body{
 .modal-grid{
   display: grid; gap: 10px;
 }
+
+/* Les champs d’authentification utilisent .modal-field pour séparer label et input,
+   améliorant la mise en page et évitant des problèmes de clics. */
+.modal-field{
+  display: flex;
+  flex-direction: column;
+}
+.modal-field label{
+  margin-bottom: 4px;
+  font-size: 14px;
+}
 .modal-actions{
   display: flex; gap: 10px; align-items: center; margin-top: 6px;
+}
+
+/* Assure que les actions (boutons) répondent aux clics sans être bloqués
+   par un parent éventuel. */
+.modal-actions .btn{
+  pointer-events: auto;
 }
 #loginErr{ color: var(--danger); font-size: 13px; }
 #loginInfo{
