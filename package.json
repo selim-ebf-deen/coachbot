@@ -1,9 +1,8 @@
 {
   "name": "coachbot",
   "version": "1.0.0",
-  "description": "CoachBot - Assistant de coaching avec Claude et interface admin",
+  "private": true,
   "type": "module",
-  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
@@ -13,10 +12,6 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "jsonwebtoken": "^9.0.2",
-    "node-fetch": "^3.3.2"
-  },
-  "engines": {
-    "node": ">=18.x"
+    "jsonwebtoken": "^9.0.2"
   }
 }
