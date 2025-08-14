@@ -2,174 +2,66 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CoachBot — Programme 15 jours</title>
-  <style>
-    :root{
-      --bg:#f8f9fa; --panel:#fff; --text:#202124; --muted:#5f6368;
-      --brand:#1a73e8; --brand-2:#1557b0; --border:#e0e0e0;
-      --me:#1e8e3e; --ai:#d93025;
-      --radius:12px;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;background:var(--bg);color:var(--text);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      line-height:1.45;
-    }
-    .wrap{max-width:960px;margin:0 auto;padding:20px 16px 28px}
-
-    /* Top bar */
-    .topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
-    .who{color:var(--muted);font-size:14px}
-    .btns{display:flex;gap:8px}
-
-    /* Controls panel */
-    .card{
-      background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
-      padding:14px 14px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,.05)
-    }
-    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    select, button, textarea, input{
-      border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text);
-      padding:10px 12px;font:inherit
-    }
-    button{
-      background:var(--brand);color:#fff;border:none;cursor:pointer;
-      padding:10px 14px;border-radius:10px
-    }
-    button:hover{background:var(--brand-2)}
-    .btn-ghost{background:#eef3fd;color:var(--brand)}
-    .muted{color:var(--muted);font-size:13px}
-
-    /* Chat area */
-    #chatBox.card{padding:0}
-    .chat-wrap{
-      display:flex;flex-direction:column;gap:0;height:52vh; /* << hauteur fixe, évite tout débordement */
-    }
-    #chat{
-      flex:1 1 auto;overflow:auto;padding:14px;
-      border-bottom:1px solid var(--border);
-      scroll-behavior:smooth;background:#fff;border-radius:var(--radius) var(--radius) 0 0;
-    }
-    .composer{
-      flex:0 0 auto;display:flex;gap:8px;padding:10px;border-top:1px solid var(--border);
-      background:#fff;border-radius:0 0 var(--radius) var(--radius);
-    }
-    #msg{
-      flex:1 1 auto;min-height:56px;max-height:28vh; /* << empêche de dépasser */
-      resize:vertical;overflow:auto;
-    }
-    .bubble{
-      max-width:80%;padding:10px 12px;margin:6px 0;border-radius:12px;
-      background:#f1f3f4;border:1px solid var(--border);word-wrap:break-word
-    }
-    .bubble.me{margin-left:auto;background:#e8f5e9;border-color:#d6edd8}
-    .bubble.ai{margin-right:auto;background:#fde8e6;border-color:#f7d5d1}
-    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle}
-    .dot.me{background:var(--me)}
-    .dot.ai{background:var(--ai)}
-
-    /* Login modal */
-    #scrim{
-      position:fixed;inset:0;background:rgba(0,0,0,.35);
-      display:none;align-items:center;justify-content:center;padding:16px;z-index:20
-    }
-    .modal{
-      width:min(440px, 96vw);background:#fff;border:1px solid var(--border);border-radius:14px;
-      box-shadow:0 8px 30px rgba(0,0,0,.2);padding:14px 14px 16px
-    }
-    .modal h3{margin:6px 6px 10px 6px;font-size:18px}
-    .modal .tabs{display:flex;gap:8px;margin:8px 6px}
-    .tab{flex:1 1 auto;text-align:center;background:#eef3fd;color:var(--brand);}
-    .modal .field{display:flex;gap:8px;align-items:center;margin:8px 6px}
-    .eye{cursor:pointer;border:1px solid var(--border);padding:9px;border-radius:10px;background:#fff}
-
-    .ok{display:none;margin:0 6px 6px 6px;color:#188038;font-size:13px}
-    .err{margin:6px;color:#d93025;font-size:13px}
-
-    @media (max-width:640px){
-      .chat-wrap{height:60vh}
-      #msg{min-height:64px}
-    }
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CoachBot</title>
+  <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <div class="wrap">
-    <!-- Top bar -->
+  <div class="container">
     <div class="topbar">
-      <h1 style="margin:0;font-size:20px">CoachBot</h1>
-      <div class="btns">
-        <span id="who" class="who">Non connecté</span>
-        <button id="adminBtn" class="btn-ghost" style="display:none" onclick="location.href='/admin'">Admin</button>
-        <button id="loginBtn">Connexion</button>
-        <button id="logoutBtn" class="btn-ghost" style="display:none">Déconnexion</button>
+      <div class="topbar-left">
+        <div id="who">Non connecté</div>
+        <button id="loginBtn" class="btn btn-secondary">Connexion</button>
+        <button id="logoutBtn" class="btn btn-secondary" style="display:none">Déconnexion</button>
+        <button id="adminBtn" class="btn btn-secondary" style="display:none" onclick="location.href='/admin'">Admin</button>
+      </div>
+      <div class="topbar-right">
+        <select id="daySel" class="input-select"></select>
+        <button id="showPlan" class="btn btn-primary">Afficher</button>
       </div>
     </div>
 
-    <!-- Controls -->
     <div class="card">
-      <div class="row">
-        <select id="daySel" aria-label="Jour"></select>
-        <button id="showPlan" class="btn-ghost">Afficher</button>
-        <span class="muted">Fournisseur : </span>
-        <select id="providerSel" aria-label="Fournisseur">
-          <option value="anthropic">Claude</option>
-        </select>
-      </div>
-      <div id="plan" class="muted" style="margin-top:10px"></div>
+      <div class="card-title">Plan du jour</div>
+      <div id="plan" class="text-sm"></div>
     </div>
 
-    <!-- Chat -->
-    <div id="chatBox" class="card">
-      <div class="chat-wrap">
-        <div id="chat" aria-live="polite"></div>
-        <div class="composer">
-          <textarea id="msg" placeholder="Écris ton message au coach…"></textarea>
-          <button id="sendBtn" title="Envoyer">Envoyer</button>
+    <div class="card" style="margin-top:12px;">
+      <div id="chat" style="min-height:40vh;"></div>
+      <div class="composer" style="margin-top:8px;">
+        <div class="composer-row">
+          <textarea id="msg" class="input-textarea" placeholder="Écris ton message… (Entrée = envoyer, Shift+Entrée = retour ligne)"></textarea>
+          <div class="send-wrap">
+            <select id="providerSel" class="input-select">
+              <option value="anthropic">Claude</option>
+            </select>
+            <button id="sendBtn" class="btn btn-primary">Envoyer</button>
+          </div>
         </div>
       </div>
-      <div style="padding:8px 12px" class="muted">Point <span style="color:var(--me);font-weight:600">vert</span> = toi •
-        Point <span style="color:var(--ai);font-weight:600">rouge</span> = coach</div>
     </div>
   </div>
 
-  <!-- Login modal -->
-  <div id="scrim" role="dialog" aria-modal="true">
-    <div class="modal">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3>Connexion</h3>
-        <button id="closeModal" class="btn-ghost">Fermer</button>
+  <!-- Modale Auth -->
+  <div id="scrim">
+    <div class="modal" style="position:relative;">
+      <button id="closeModal" class="modal-close">✕</button>
+      <h3>Connexion / Inscription</h3>
+      <div class="row"><input id="regName" class="modal input" placeholder="Prénom (optionnel pour inscription)" /></div>
+      <div class="row"><input id="email" class="modal input" placeholder="Email" /></div>
+      <div class="row" style="position:relative;">
+        <input id="pass" class="modal input" type="password" placeholder="Mot de passe" />
+        <button id="toggleEye" class="eye-btn">👁</button>
       </div>
-
-      <div class="tabs">
-        <button class="tab" disabled>Utilisateur</button>
-        <button class="tab" disabled>Admin</button>
+      <div class="row" style="display:flex;gap:.5rem;">
+        <button id="doLogin" class="btn btn-primary" style="flex:1;">Se connecter</button>
+        <button id="doRegister" class="btn btn-secondary" style="flex:1;">Créer un compte</button>
       </div>
-
-      <div class="field">
-        <input id="email" type="email" placeholder="Email" autocomplete="username" style="flex:1 1 auto" />
-      </div>
-      <div class="field">
-        <input id="pass" type="password" placeholder="Mot de passe" autocomplete="current-password" style="flex:1 1 auto" />
-        <button id="toggleEye" class="eye" title="Afficher / masquer le mot de passe">👁️</button>
-      </div>
-      <div class="field">
-        <input id="regName" type="text" placeholder="Prénom (pour inscription)" style="flex:1 1 auto" />
-      </div>
-
-      <div class="field" style="gap:10px">
-        <button id="doLogin" style="flex:1 1 0">Connexion</button>
-        <button id="doRegister" class="btn-ghost" style="flex:1 1 0">Inscription</button>
-      </div>
-
-      <div id="loginInfo" class="ok">✅ Connecté !</div>
-      <div id="loginErr" class="err" role="alert"></div>
+      <div id="loginErr" class="modal help" style="color:#f87171;"></div>
+      <div id="loginInfo" class="badge-ok" style="display:none;">✔ Connecté</div>
     </div>
   </div>
 
-  <!-- App script -->
-  <script src="main.js"></script>
+  <script src="/main.js"></script>
 </body>
 </html>
