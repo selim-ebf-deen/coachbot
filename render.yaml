@@ -1,22 +1,15 @@
 services:
   - type: web
-    name: coachbot-15j
+    name: coachbot
     env: node
-    plan: free
-    buildCommand: npm install
-    startCommand: node server.js
-    envVars:
-      - key: DEFAULT_PROVIDER
-        value: openai
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: DB_PATH
-        value: /data/data.sqlite
+    plan: starter
+    buildCommand: "npm install --omit=dev"
+    startCommand: "node server.js"
+    autoDeploy: true
     disk:
       name: data
       mountPath: /data
       sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
